@@ -39,4 +39,4 @@ jobs:
         DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
         TEST_SERVER_ID: ${{ secrets.TEST_SERVER_ID }}
       run: |
-        timeout 10s python bot.py
+        timeout --preserve-status 10s python bot.py
