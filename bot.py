@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 #Setup
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
+print(type(os.getenv('TEST_SERVER_ID')),type(TOKEN))
 testguild = discord.Object(id=os.getenv('TEST_SERVER_ID'))
-#print(testguild)
 
 #Verify connection in server output
 @client.event
