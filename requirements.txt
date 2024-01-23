@@ -1,5 +1,4 @@
 discord
 python-dotenv
 numpy
-os
 sys
