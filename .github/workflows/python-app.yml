@@ -39,4 +39,4 @@ jobs:
         DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
         TEST_SERVER_ID: ${{ secrets.TEST_SERVER_ID }}
       run: |
-        timeout --preserve-status 10s python bot.py || if [ $? -eq 124 ]; then echo "timeout closed the bot."; else exit 1; fi
+        timeout --preserve-status 10s python bot.py || if [ $? -eq 143 ]; then echo "timeout closed the bot."; else exit 1; fi
