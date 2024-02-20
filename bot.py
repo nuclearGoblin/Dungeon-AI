@@ -1,5 +1,7 @@
 #Imports
 import os, discord
+import pandas as pd
+import sqlite3 as sql
 from commands import * #load our commands without need for ref
 from dotenv import load_dotenv
 
@@ -9,9 +11,16 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 print(type(os.getenv('TEST_SERVER_ID')),type(TOKEN))
 testguild = discord.Object(id=os.getenv('TEST_SERVER_ID'))
 
-userdb_present = os.path.exists("users.db")
-chardb_present = os.path.exists("chars.db")
-settingsdb_present = os.path.exists("settings.db")
+users = sql.connect()
+if userdb_present:
+    #check the columns
+    pass #because there's no code here yet
+else:
+    #create the missing database
+    df = pd.DataFrame()
+    connection=sql.connect('dungeon')
+    #df.to_sql(name='users',con=connection) #well first we want it to have something in it.
+#do again for chars, settings
 
 #Verify connection in server output
 @client.event

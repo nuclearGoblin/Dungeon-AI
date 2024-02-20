@@ -105,11 +105,10 @@ async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, p
 )
 async def link(interaction: discord.Interaction, url: str="", default: bool=True, overwrite: bool=False, allguilds: bool=False, name: str=None):
     await interaction.response.send_message("Sorry, I'm a placeholder!",ephemeral=True)
-    pass
-#So this should use two databases:
-#1. Database containing user/guild/character sheet data.
+#So this should use one database with three tables:
+#1. Table containing user/guild/character sheet data.
 # - User ID, Guild ID, Character ID, Character Name, "default" status.
-#2. Database containing character data.
+#2. Table containing character data.
 # - Character ID, all relevant status, integrated with google sheets.
 
 #Other commands to write:
@@ -119,4 +118,4 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
 #rename (rename a character sheet. if no arg, update the name based on the sheet.)
 #skillroll (roll the associated skill+modifiers, this is the main function we want)
 #requestroll (be able to request players click a button and roll a thing.)
-#configure (bot settings per server, maybe uses a third database, things like who can view sheets and request rolls.)
+#configure (bot settings per server, maybe uses a third table, things like who can view sheets and request rolls.)

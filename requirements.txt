@@ -2,3 +2,4 @@ discord>=2
 python-dotenv
 numpy
 pandas
+sqlite3
