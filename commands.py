@@ -99,8 +99,8 @@ async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, p
 @discord.app_commands.describe(
     url="The URL of your character sheet.",
     default="Set the character sheet as your default character sheet. (Default: True)",
-    overwrite="Overwrite all character sheet settings for this server, deleting previously linked character sheets. (Default: False)"
-    allguilds="Use this character sheet in all Discord servers I am in. (Default: False)"
+    overwrite="Overwrite all character sheet settings for this server, deleting previously linked character sheets. (Default: False)",
+    allguilds="Use this character sheet in all Discord servers I am in. (Default: False)",
     name="Name for the character sheet. (Default: Whatever you've written on the character sheet.)"
 )
 async def link(interaction: discord.Interaction, url: str="", default: bool=True, overwrite: bool=False, allguilds: bool=False, name: str=None):

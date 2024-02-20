@@ -9,6 +9,10 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 print(type(os.getenv('TEST_SERVER_ID')),type(TOKEN))
 testguild = discord.Object(id=os.getenv('TEST_SERVER_ID'))
 
+userdb_present = os.path.exists("users.db")
+chardb_present = os.path.exists("chars.db")
+settingsdb_present = os.path.exists("settings.db")
+
 #Verify connection in server output
 @client.event
 async def on_ready():
