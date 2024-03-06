@@ -113,31 +113,39 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     else: token = url
     #Now that we have a token, see if the user is in the table.
     if interaction.user.id not in users["userID"]:
-        gRow = pd.DataFrame([interaction.user.id,[],[]],columns=guildCols) #fill placeholders in a moment
-        uRow = pd.DataFrame([interaction.user.id,[],[[]]],columns=userCols)
+        gRow = pd.DataFrame([[interaction.user.id,[],[]]],columns=guildCols) #fill placeholders in a moment
+        uRow = pd.DataFrame([[interaction.user.id,[],[[]]]],columns=userCols)
         message = "Updated "
     else:
         gRow = guilds.loc[guilds['userID'] == interaction.user.id]
         uRow = users.loc[users['userID'] == interaction.user.id]
         message = "Linked "
+    print("userID:",uRow.iloc[0]["userID"])
     #See if the character is already in the table
-    if token not in uRow[1]: uRow[1].append(token)
-    pos = uRow[1].index(token) #Store where in the row it is.
+    if token not in uRow.iloc[0]["charIDs"]: uRow.iloc[0]["charIDs"].append(token)
+    pos = uRow.iloc[0]["charIDs"].index(token) #Store where in the row it is.
     guildID = interaction.guild.id
     #See if the token is already associated with this guild and allguild and default statuses are not changing.
-    if (guildID in uRow[2][pos] and not allguilds) or (uRow[2][pos] == "all" and allguilds):
-        if (token in gRow[2][gRow[1].index(guildID)]) != default:
+    if (guildID in uRow.iloc[0]["guildAssociations"][pos] and not allguilds) or (uRow.iloc[0]["guildAssociations"][pos] == "all" and allguilds):
+        if (token in gRow.iloc[0]["mainCharIDs"][gRow.iloc[0]["guildIDs"].index(guildID)]) != default:
             await interaction.response.send_message("This character is already linked as described. Nothing to do!")
             return
     #See if we need to add the current guild to the list of guilds.
-    if guildID not in gRow[1]: gRow[1].append(guildID)
+    if guildID not in gRow.iloc[0]["guildIDs"]: 
+        gRow.iloc[0]["guildIDs"].append(guildID)
     #If this character is to be the default for this guild, we should associate them.
-    if default: gRow[2][gRow[1].index(guildID)] = token
+    if default: 
+        try: #Try reassigning if exists
+            gRow.iloc[0]["mainCharIDs"][gRow.iloc[0]["guildIDs"].index(guildID)] = token
+        except IndexError: #If it doesn't, create it.
+            gRow.iloc[0]["mainCharIDs"].append(token)
+            if len(gRow.iloc[0]["mainCharIDs"]) < gRow.iloc[0]["guildIDs"].index(guildID): #If we still don't have that many indices,
+                raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
     #Set up guild association for character.
-    if allguilds: uRow[2][pos] = "all"
-    elif guildID not in uRow[2][pos]:
-        if uRow[2][pos] == "all": uRow[2][pos] = [guildID]
-        else: uRow[2][pos].append(guildID)
+    if allguilds: uRow.iloc[0]["guildAssociations"][pos] = "all"
+    elif guildID not in uRow.iloc[0][2][pos]:
+        if uRow.iloc[0]["guildAssociations"][pos] == "all": uRow.iloc[0]["guildAssociations"][pos] = [guildID]
+        else: uRow.iloc[0]["guildAssociations"][pos].append(guildID)
     #Save the data!
     users = pd.concat([users,uRow])
     users.to_sql(name='users',con=connection)
