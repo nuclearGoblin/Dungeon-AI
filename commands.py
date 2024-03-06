@@ -2,12 +2,12 @@
 import discord, re
 import numpy as np
 import pandas as pd
+from decs import *
 
 #Setup
-client = discord.Client(intents=discord.Intents.none())
-tree = discord.app_commands.CommandTree(client)
-
-#Comands
+users = pd.read_sql("SELECT * FROM users",connection)
+chars = pd.read_sql("SELECT * FROM chars",connection)
+guilds = pd.read_sql("SELECT * FROM guilds",connection)
 
 #List of commands. Important!
 @tree.command(
@@ -94,18 +94,74 @@ async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, p
 #Character sheet linking
 @tree.command(
     name="link",
-    description="Links a character sheet to your user on this server."
+    description="Links a character sheet to your user on this server. If already linked, modifies link settings."
 )
 @discord.app_commands.describe(
     url="The URL of your character sheet.",
-    default="Set the character sheet as your default character sheet. (Default: True)",
-    overwrite="Overwrite all character sheet settings for this server, deleting previously linked character sheets. (Default: False)",
-    allguilds="Use this character sheet in all Discord servers I am in. (Default: False)",
-    name="Name for the character sheet. (Default: Whatever you've written on the character sheet.)"
+    default="Set the character sheet as your default character sheet for the current guild. (Default: True)",
+    allguilds="Access this character sheet from all Discord servers you are in. (Default: False).",
 )
-async def link(interaction: discord.Interaction, url: str="", default: bool=True, overwrite: bool=False, allguilds: bool=False, name: str=None):
-    await interaction.response.send_message("Sorry, I'm a placeholder!",ephemeral=True)
-#So this should use one database with three tables:
+async def link(interaction: discord.Interaction, url: str="", default: bool=True, allguilds: bool=False):
+    global users,chars,guilds
+    if "." in url: #This is a full URL, so we need to strip it
+        token = url.split("https://") #Remove this first if it's present, since we're splitting on / this would cause issues.
+        token = url.split("/") #Now split along slashes.
+        token = token[3] #Take the third entry
+    elif "/" in url: #I don't know how to interpret this. You left out .com but included slashes so I don't know where to start.
+        await interaction.response.send_message("Unable to interpret provided url. Please either provide the full URL of your document or only the token.",ephemeral=True)
+        return
+    else: token = url
+    #Now that we have a token, see if the user is in the table.
+    if interaction.user.id not in users["userID"]:
+        gRow = pd.DataFrame([interaction.user.id,[],[]],columns=guildCols) #fill placeholders in a moment
+        uRow = pd.DataFrame([interaction.user.id,[],[[]]],columns=userCols)
+        message = "Updated "
+    else:
+        gRow = guilds.loc[guilds['userID'] == interaction.user.id]
+        uRow = users.loc[users['userID'] == interaction.user.id]
+        message = "Linked "
+    #See if the character is already in the table
+    if token not in uRow[1]: uRow[1].append(token)
+    pos = uRow[1].index(token) #Store where in the row it is.
+    guildID = interaction.guild.id
+    #See if the token is already associated with this guild and allguild and default statuses are not changing.
+    if (guildID in uRow[2][pos] and not allguilds) or (uRow[2][pos] == "all" and allguilds):
+        if (token in gRow[2][gRow[1].index(guildID)]) != default:
+            await interaction.response.send_message("This character is already linked as described. Nothing to do!")
+            return
+    #See if we need to add the current guild to the list of guilds.
+    if guildID not in gRow[1]: gRow[1].append(guildID)
+    #If this character is to be the default for this guild, we should associate them.
+    if default: gRow[2][gRow[1].index(guildID)] = token
+    #Set up guild association for character.
+    if allguilds: uRow[2][pos] = "all"
+    elif guildID not in uRow[2][pos]:
+        if uRow[2][pos] == "all": uRow[2][pos] = [guildID]
+        else: uRow[2][pos].append(guildID)
+    #Save the data!
+    users = pd.concat([users,uRow])
+    users.to_sql(name='users',con=connection)
+    guilds = pd.concat([guilds,gRow])
+    guilds.to_sql(name='guilds',con=connection)
+    #Construct a nice pretty message.
+    name = "NAME_PLACEHOLDER"
+    message.append(name+" with ID "+token+" to be associated with ")
+    if allguilds: message.append("all guilds")
+    else: message.append("this guild")
+    if default: message.append(" and function as the default for this guild")
+    message.append(".")
+    await interaction.response.send_message(message,ephemeral=True)
+
+#async def unlink()
+#Let someone unlink data.
+    
+#force refresh
+#Force refresh character data (should be done automatically but may not always be good)
+    
+#view
+#view links
+
+#So this should use one database with two tables:
 #1. Table containing user/guild/character sheet data.
 # - User ID, Guild ID, Character ID, Character Name, "default" status.
 #2. Table containing character data.
