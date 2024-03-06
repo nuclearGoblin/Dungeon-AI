@@ -116,10 +116,18 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         gRow = pd.DataFrame([[interaction.user.id,[],[]]],columns=guildCols) #fill placeholders in a moment
         uRow = pd.DataFrame([[interaction.user.id,[],[[]]]],columns=userCols)
         message = "Updated "
+        concat = True
     else:
         gRow = guilds.loc[guilds['userID'] == interaction.user.id]
         uRow = users.loc[users['userID'] == interaction.user.id]
         message = "Linked "
+        concat = False
+    if token not in chars["charID"]: 
+        cRow = [token] 
+        #do stuff to generate the character in the database
+    else: #go ahead and force update while we're here
+        #update the character
+        pass
     print("userID:",uRow.iloc[0]["userID"])
     #See if the character is already in the table
     if token not in uRow.iloc[0]["charIDs"]: uRow.iloc[0]["charIDs"].append(token)
@@ -147,10 +155,12 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         if uRow.iloc[0]["guildAssociations"][pos] == "all": uRow.iloc[0]["guildAssociations"][pos] = [guildID]
         else: uRow.iloc[0]["guildAssociations"][pos].append(guildID)
     #Save the data!
-    users = pd.concat([users,uRow])
-    users.to_sql(name='users',con=connection)
-    guilds = pd.concat([guilds,gRow])
-    guilds.to_sql(name='guilds',con=connection)
+    if concat: #If the stuff wasn't found before, then append to existing.
+        uRow.to_sql(name='users',con=connection,if_exists="append")
+        gRow.to_sql(name='guilds',con=connection,if_exists="append")
+    else: #Otherwise, just update the table by replacement.
+        users.to_sql(name='users',con=connection,if_exists="replace")
+        guilds.to_sql(name='guilds',con=connection,if_exists="replace")
     #Construct a nice pretty message.
     name = "NAME_PLACEHOLDER"
     message.append(name+" with ID "+token+" to be associated with ")
@@ -167,7 +177,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
 #Force refresh character data (should be done automatically but may not always be good)
     
 #view
-#view links
+#view links for your (or specified) account
 
 #So this should use one database with two tables:
 #1. Table containing user/guild/character sheet data.
