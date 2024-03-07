@@ -122,13 +122,13 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         uRow = users.loc[users['userID'] == interaction.user.id]
         message = "Linked "
         concat = False
-    if token not in chars["charID"]: 
-        cRow = [token] 
-        #do stuff to generate the character in the database
-    else: #go ahead and force update while we're here
-        #update the character
-        pass
-    print("userID:",uRow.iloc[0]["userID"])
+    if False: #commenting these out for now until char db set up
+        if token not in chars["charID"]: 
+            cRow = [token] 
+            #do stuff to generate the character in the database
+        else: #go ahead and force update while we're here
+            #update the character
+            pass
     #See if the character is already in the table
     if token not in uRow.iloc[0]["charIDs"]: uRow.iloc[0]["charIDs"].append(token)
     pos = uRow.iloc[0]["charIDs"].index(token) #Store where in the row it is.
@@ -155,9 +155,13 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         if uRow.iloc[0]["guildAssociations"][pos] == "all": uRow.iloc[0]["guildAssociations"][pos] = [guildID]
         else: uRow.iloc[0]["guildAssociations"][pos].append(guildID)
     #Save the data!
+    print("Saving data.") #debug
     if concat: #If the stuff wasn't found before, then append to existing.
+        print("Concatenating.")
         uRow.to_sql(name='users',con=connection,if_exists="append")
+        print("1/2")
         gRow.to_sql(name='guilds',con=connection,if_exists="append")
+        print("Concatenated.")
     else: #Otherwise, just update the table by replacement.
         users.to_sql(name='users',con=connection,if_exists="replace")
         guilds.to_sql(name='guilds',con=connection,if_exists="replace")
