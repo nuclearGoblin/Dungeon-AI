@@ -5,9 +5,9 @@ import pandas as pd
 from decs import *
 
 #Setup
-users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection,dtype=uTypes)
-chars = pd.read_sql("SELECT"+", ".join(charCols)+" FROM chars",connection,dtype=cTypes)
-guilds = pd.read_sql("SELECT "+", ".join(userCols)+" FROM guilds",connection,dtype=gTypes)
+users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection)
+chars = pd.read_sql("SELECT"+", ".join(charCols)+" FROM chars",connection)
+guilds = pd.read_sql("SELECT "+", ".join(userCols)+" FROM guilds",connection)
 
 #List of commands. Important!
 @tree.command(
