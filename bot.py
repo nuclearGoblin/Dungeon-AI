@@ -17,8 +17,7 @@ from googleapiclient.discovery import build
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 SAMPLE_SPREADSHEET_ID = "1sRKjgEWwBr9cS_9KEvog6Y6_Ud3E0wI3URK56seRcmc"
 SAMPLE_RANGE_NAME = "Character Sheet!B2:B5"
-GAPI = os.getenv("GAPI")
-creds = service_account.Credentials.from_service_account_info(json.load(GAPI))
+creds = service_account.Credentials.from_service_account_info(json.load(open("service.json")))
 
 #Call the Google API to make sure it's working.
 service = build("sheets","v4",credentials=creds)
