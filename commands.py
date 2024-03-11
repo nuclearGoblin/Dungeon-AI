@@ -6,8 +6,8 @@ from decs import *
 
 #Setup
 users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection)
-chars = pd.read_sql("SELECT"+", ".join(charCols)+" FROM chars",connection)
-guilds = pd.read_sql("SELECT "+", ".join(userCols)+" FROM guilds",connection)
+chars = pd.read_sql("SELECT "+", ".join(charCols)+" FROM chars",connection)
+guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection)
 
 #List of commands. Important!
 @tree.command(
@@ -150,10 +150,25 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             if len(gRow.iloc[0]["mainCharIDs"]) < gRow.iloc[0]["guildIDs"].index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
     #Set up guild association for character.
-    if allguilds: uRow.iloc[0]["guildAssociations"][pos] = "all"
+    if allguilds: 
+        assocs = uRow.iloc[0]["guildAssociations"]
+        assocs[pos] = "all"
+        uRow.at[0,"guildAssociations"] = assocs
     elif guildID not in uRow.iloc[0][2][pos]:
-        if uRow.iloc[0]["guildAssociations"][pos] == "all": uRow.iloc[0]["guildAssociations"][pos] = [guildID]
-        else: uRow.iloc[0]["guildAssociations"][pos].append(guildID)
+        if uRow.iloc[0]["guildAssociations"][pos] == "all": 
+            assocs = uRow.iloc[0]["guildAssociations"]
+            assocs[pos] = [guildID]
+            uRow.at[0,"guildAssociations"] = assocs
+        else: 
+            x = uRow.iloc[0]["guildAssociations"][0].append(guildID)
+            uRow.at[0,"guildAssociations"] = x
+    #Reformat data as necessary
+    uRow.at[0,"guildAssociations"] = str(uRow.iloc[0]["guildAssociations"])
+    uRow["charIDs"] = uRow["charIDs"].astype("str")
+    uRow["guildAssociations"] = uRow["guildAssociations"].astype("str")
+    gRow["guildIDs"] = gRow["guildIDs"].astype("str")
+    gRow["mainCharIDs"] = gRow["mainCharIDs"].astype("str")
+    print(gRow.dtypes)
     #Save the data!
     print("Saving data.") #debug
     if concat: #If the stuff wasn't found before, then append to existing.
@@ -167,11 +182,11 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         guilds.to_sql(name='guilds',con=connection,if_exists="replace")
     #Construct a nice pretty message.
     name = "NAME_PLACEHOLDER"
-    message.append(name+" with ID "+token+" to be associated with ")
-    if allguilds: message.append("all guilds")
-    else: message.append("this guild")
-    if default: message.append(" and function as the default for this guild")
-    message.append(".")
+    message += name+" with ID "+token+" to be associated with "
+    if allguilds: message += "all guilds"
+    else: message += "this guild"
+    if default: message += " and function as the default for this guild"
+    message += "."
     await interaction.response.send_message(message,ephemeral=True)
 
 #async def unlink()

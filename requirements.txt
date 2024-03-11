@@ -2,3 +2,6 @@ discord>=2
 python-dotenv
 numpy
 pandas
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

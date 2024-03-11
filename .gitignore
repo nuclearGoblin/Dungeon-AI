@@ -161,3 +161,6 @@ cython_debug/
 
 # Potentially Private Information
 *.db
+*secret*
+token.json
+service.json

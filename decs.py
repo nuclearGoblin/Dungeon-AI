@@ -13,5 +13,5 @@ tree = discord.app_commands.CommandTree(client)
 #sql stuff
 userCols = ["userID","charIDs","guildAssociations"]
 guildCols = ["userID","guildIDs","mainCharIDs"]
-charCols = ["charID"]
+charCols = ["charID","accessLevel"]
 connection = sql.connect("characters.db")
