@@ -3,10 +3,11 @@ import discord, re
 import numpy as np
 import pandas as pd
 from decs import *
+import googleapiclient.errors
 
 #Setup
 users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection)
-chars = pd.read_sql("SELECT "+", ".join(charCols)+" FROM chars",connection)
+#chars = pd.read_sql("SELECT "+", ".join(charCols)+" FROM chars",connection)
 guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection)
 
 #List of commands. Important!
@@ -17,7 +18,8 @@ guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection)
 async def help(interaction: discord.Interaction):
     message = """**help** - Prints this help menu.
 **roll** - Rolls a die, default 1d20, see command for options.
-**link** - Links a character sheet to your user for this server."""
+**link** - Links a character sheet to your user for this server.
+**view** - View the character sheets that you've linked to this server."""
     await interaction.response.send_message(message,ephemeral=True)
 
 #Basic die rolls.
@@ -102,7 +104,8 @@ async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, p
     allguilds="Access this character sheet from all Discord servers you are in. (Default: False).",
 )
 async def link(interaction: discord.Interaction, url: str="", default: bool=True, allguilds: bool=False):
-    global users,chars,guilds
+    global users,guilds#,chars
+    #Token interpretation
     if "." in url: #This is a full URL, so we need to strip it
         token = url.split("https://") #Remove this first if it's present, since we're splitting on / this would cause issues.
         token = url.split("/") #Now split along slashes.
@@ -114,15 +117,15 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     #Now that we have a token, see if the user is in the table.
     if interaction.user.id not in users["userID"]:
         gRow = pd.DataFrame([[interaction.user.id,[],[]]],columns=guildCols) #fill placeholders in a moment
-        uRow = pd.DataFrame([[interaction.user.id,[],[[]]]],columns=userCols)
-        message = "Updated "
+        uRow = pd.DataFrame([[interaction.user.id,[],[[]],[]]],columns=userCols)
+        message = "Linked "
         concat = True
     else:
         gRow = guilds.loc[guilds['userID'] == interaction.user.id]
         uRow = users.loc[users['userID'] == interaction.user.id]
-        message = "Linked "
+        message = "Updated "
         concat = False
-    if False: #commenting these out for now until char db set up
+    if False: #commenting these out for now until char db set up -- which is maybe never!
         if token not in chars["charID"]: 
             cRow = [token] 
             #do stuff to generate the character in the database
@@ -133,11 +136,28 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     if token not in uRow.iloc[0]["charIDs"]: uRow.iloc[0]["charIDs"].append(token)
     pos = uRow.iloc[0]["charIDs"].index(token) #Store where in the row it is.
     guildID = interaction.guild.id
-    #See if the token is already associated with this guild and allguild and default statuses are not changing.
-    if (guildID in uRow.iloc[0]["guildAssociations"][pos] and not allguilds) or (uRow.iloc[0]["guildAssociations"][pos] == "all" and allguilds):
+    #Test read the character sheet.
+    try:
+        name = sheet.values().get(spreadsheetId=token,range="Character Sheet!C2").execute().get("values",[])
+    except googleapiclient.errors.HttpError:
+        await interaction.response.send_message("Unable to reach character sheet. Please make sure that it is either public or shared with the bot, whose email is: `discord-test@dungeon-ai-416903.iam.gserviceaccount.com`",ephemeral=True)
+        return
+    if not name: name = "PLACEHOLDER_NAME"
+    else: name = name[0][0]
+    #Test write to the character sheet.
+    readonly = readonlytest(token)
+    #See if the token is already associated with this guild and allguild and default statuses are not changing, and that the readonly status wouldn't change.
+    if ((guildID in uRow.iloc[0]["guildAssociations"][pos] and not allguilds) or (uRow.iloc[0]["guildAssociations"][pos] == "all" and allguilds)) and readonly == uRow.iloc[0]["readonly"][pos]:
         if (token in gRow.iloc[0]["mainCharIDs"][gRow.iloc[0]["guildIDs"].index(guildID)]) != default:
             await interaction.response.send_message("This character is already linked as described. Nothing to do!")
             return
+    #Update read-only status now that it's been checked.
+    roArray = uRow.iloc[0]["readonly"]
+    try:
+        roArray[pos] = readonly
+    except IndexError: #Unless it's not in the list yet.
+        roArray.append(readonly)
+    uRow.at[0,"readonly"] = roArray
     #See if we need to add the current guild to the list of guilds.
     if guildID not in gRow.iloc[0]["guildIDs"]: 
         gRow.iloc[0]["guildIDs"].append(guildID)
@@ -166,6 +186,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     uRow.at[0,"guildAssociations"] = str(uRow.iloc[0]["guildAssociations"])
     uRow["charIDs"] = uRow["charIDs"].astype("str")
     uRow["guildAssociations"] = uRow["guildAssociations"].astype("str")
+    uRow["readonly"] = uRow["readonly"].astype("str")
     gRow["guildIDs"] = gRow["guildIDs"].astype("str")
     gRow["mainCharIDs"] = gRow["mainCharIDs"].astype("str")
     print(gRow.dtypes)
@@ -181,34 +202,66 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         users.to_sql(name='users',con=connection,if_exists="replace")
         guilds.to_sql(name='guilds',con=connection,if_exists="replace")
     #Construct a nice pretty message.
-    name = "NAME_PLACEHOLDER"
-    message += name+" with ID "+token+" to be associated with "
-    if allguilds: message += "all guilds"
-    else: message += "this guild"
+    #name = "NAME_PLACEHOLDER"
+    message += name
+    if readonly: message += " (read only)"
+    else: message += " (writable)"
+    message += " with ID `"+token+"` to be associated with "
+    if allguilds: message += "**all** guilds"
+    else: message += "**this** guild"
     if default: message += " and function as the default for this guild"
     message += "."
+    if readonly: message += " In order to give the bot write access to your character sheet, please give editor status to its email and run this command again. Bot email: `discord-test@dungeon-ai-416903.iam.gserviceaccount.com`."
     await interaction.response.send_message(message,ephemeral=True)
+
+#view
+#view links for your (or specified) account
+@tree.command(
+    name="view",
+    description="View a list of your character associations for this guild."
+)
+@discord.app_commands.describe(
+    char="'all,' ID,  or comma-separated list of IDs of characters you wish to view. (Default: all)",
+    private="Hide the message from other users in this server. (Default: True)"
+)
+async def view(interaction: discord.Interaction, char: str="all",private: bool=True):
+    message = "Characters found: \n =============== \n **ID | Name | default? | guild association | bot access \n"
+    guildID = interaction.guild.id
+    if interaction.user.id not in pd.to_numeric(users["userID"]).values:
+        await interaction.response.send_message("You have not yet linked any characters!",ephemeral=private)
+        return
+    else:
+        gRow = guilds.loc[guilds['userID'] == interaction.user.id]
+        uRow = users.loc[users['userID'] == interaction.user.id]
+    if guildID not in gRow["guildIDs"]:
+        #Check later for any with 'all'
+        pass
+    if char == "all":
+        charlist = uRow["charIDs"]
+    else: charlist = char.replace(" ","").split(",")
+    for character in charlist:
+        message += "`"+character+"` | "
+        message += str(sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])) + " | "
+        pos = uRow.iloc[0]["charIDs"].index(character)
+        message += str(gRow.iloc[0]["mainCharIDs"][gRow.iloc[0]["guildIDs"].index(guildID)]) + " | "
+        #default status
+        guildassocs = uRow.iloc[0]["guildAssociations"][pos]
+        if len(guildassocs) > 1: #If there are multiple,
+            message += "Multiple, including this one"
+        elif guildID in guildassocs: #If there's just one, and it's this one,
+            message += "This guild only"
+        elif guildassocs == all:
+            message += "All guilds"
+        else:
+            raise ValueError("Something's wrong with guildassocs, which has value "+str(guildassocs))
+        if readonlytest: message += "read only"
+        else: message += "writable"
+    await interaction.response.send_message(message,ephemeral=private)
 
 #async def unlink()
 #Let someone unlink data.
-    
-#force refresh
-#Force refresh character data (should be done automatically but may not always be good)
-    
-#view
-#view links for your (or specified) account
-
-#So this should use one database with two tables:
-#1. Table containing user/guild/character sheet data.
-# - User ID, Guild ID, Character ID, Character Name, "default" status.
-#2. Table containing character data.
-# - Character ID, all relevant status, integrated with google sheets.
 
 #Other commands to write:
-#unlink (if no ID provided, unlink all data in current guild. If "all guilds" option provided, delete all user data.)
-#mergecharacters (merge all characters associated with User ID into )
-#show (show all linked character sheets, with names + IDs. Users can only see their own data unless they are server owners, in which case they can see all data for the guild.)
-#rename (rename a character sheet. if no arg, update the name based on the sheet.)
 #skillroll (roll the associated skill+modifiers, this is the main function we want)
 #requestroll (be able to request players click a button and roll a thing.)
 #configure (bot settings per server, maybe uses a third table, things like who can view sheets and request rolls.)
