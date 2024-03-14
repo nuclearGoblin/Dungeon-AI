@@ -24,7 +24,7 @@ else:
 
 #Check the database on spin-up -- don't want things to blip on if they're broken.
 try: #Check if the tables needed exist
-    users = pd.read_sql("SELECT * FROM users",connection)
+    users = pd.read_sql("SELECT * FROM users",connection,dtype=types)
 except pd.io.sql.DatabaseError: #If they don't,
     users = pd.DataFrame(columns=userCols)
     #user id [1], list of guild ids [n], list of default character identifiers [n], list of character ids [m], list of guilds with access to character [awk m]
@@ -38,7 +38,7 @@ if False: #Not actually sure we need chars db
         chars.to_sql(name='chars',con=connection)
         print("`chars` table was not present -- created!")
 try: #Check if the tables needed exist
-    guilds = pd.read_sql("SELECT * FROM guilds",connection)
+    guilds = pd.read_sql("SELECT * FROM guilds",connection,dtype=types)
 except pd.io.sql.DatabaseError: #If they don't,
     guilds = pd.DataFrame(columns=guildCols)
     guilds.to_sql(name='guilds',con=connection)

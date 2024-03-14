@@ -6,9 +6,9 @@ from decs import *
 import googleapiclient.errors
 
 #Setup
-users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection)
+users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection,dtype=types)
 #chars = pd.read_sql("SELECT "+", ".join(charCols)+" FROM chars",connection)
-guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection)
+guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection,dtype=types)
 
 #List of commands. Important!
 @tree.command(
@@ -115,16 +115,32 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         return
     else: token = url
     #Now that we have a token, see if the user is in the table.
-    if interaction.user.id not in users["userID"]:
+    uID = interaction.user.id
+    print(type(uID),users["userID"].values,uID in users["userID"].values)
+    if interaction.user.id not in users["userID"].values:
         gRow = pd.DataFrame([[interaction.user.id,[],[]]],columns=guildCols) #fill placeholders in a moment
         uRow = pd.DataFrame([[interaction.user.id,[],[[]],[]]],columns=userCols)
         message = "Linked "
         concat = True
+
+        cIDs = uRow.iloc[0]["charIDs"]
+        gAssoc = uRow.iloc[0]["guildAssociations"]
+        gIDs = gRow.iloc[0]["guildIDs"]
+        mcIDs = gRow.iloc[0]["mainCharIDs"]
+        roArray = uRow.iloc[0]["readonly"]
     else:
         gRow = guilds.loc[guilds['userID'] == interaction.user.id]
         uRow = users.loc[users['userID'] == interaction.user.id]
         message = "Updated "
         concat = False
+
+        cIDs = strtolist(uRow.iloc[0]["charIDs"])
+        gAssoc = strtolist(uRow.iloc[0]["guildAssociations"])
+        gAssoc = [strtolist(x) for x in gAssoc]
+        gIDs = strtolist(gRow.iloc[0]["guildIDs"])
+        gIDs = [int(x) for x in gIDs]
+        mcIDs = strtolist(gRow.iloc[0]["mainCharIDs"])
+        roArray = strtolist(uRow.iloc[0]["readonly"])
     if False: #commenting these out for now until char db set up -- which is maybe never!
         if token not in chars["charID"]: 
             cRow = [token] 
@@ -133,8 +149,12 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             #update the character
             pass
     #See if the character is already in the table
-    if token not in uRow.iloc[0]["charIDs"]: uRow.iloc[0]["charIDs"].append(token)
-    pos = uRow.iloc[0]["charIDs"].index(token) #Store where in the row it is.
+    
+    if token not in cIDs: 
+        cIDs.append(token)
+        uRow.at[0,"charIDs"] = cIDs
+    pos = cIDs.index(token) #Store where in the row it is.
+    print(cIDs,len(cIDs),cIDs[0],token,pos)
     guildID = interaction.guild.id
     #Test read the character sheet.
     try:
@@ -147,41 +167,52 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     #Test write to the character sheet.
     readonly = readonlytest(token)
     #See if the token is already associated with this guild and allguild and default statuses are not changing, and that the readonly status wouldn't change.
-    if ((guildID in uRow.iloc[0]["guildAssociations"][pos] and not allguilds) or (uRow.iloc[0]["guildAssociations"][pos] == "all" and allguilds)) and readonly == uRow.iloc[0]["readonly"][pos]:
-        if (token in gRow.iloc[0]["mainCharIDs"][gRow.iloc[0]["guildIDs"].index(guildID)]) != default:
-            await interaction.response.send_message("This character is already linked as described. Nothing to do!")
+    
+    if gAssoc[pos] != "all": 
+        print(gAssoc)
+        gAssoc[pos] = [int(x) for x in gAssoc[pos]]
+    print("anything to do? \n",guildID in gAssoc[pos] and not allguilds,readonly,roArray[pos] == False)
+    if ((guildID in gAssoc[pos] and not allguilds) or (gAssoc[pos] == "all" and allguilds)) and readonly == (roArray[pos] == "True"):
+        print("checking default",mcIDs[gIDs.index(guildID)],default,token in mcIDs[gIDs.index(guildID)])
+        if (token in mcIDs[gIDs.index(guildID)]) == default:
+            await interaction.response.send_message("This character is already linked as described. Nothing to do!",ephemeral=True)
             return
     #Update read-only status now that it's been checked.
-    roArray = uRow.iloc[0]["readonly"]
     try:
         roArray[pos] = readonly
     except IndexError: #Unless it's not in the list yet.
         roArray.append(readonly)
     uRow.at[0,"readonly"] = roArray
     #See if we need to add the current guild to the list of guilds.
-    if guildID not in gRow.iloc[0]["guildIDs"]: 
-        gRow.iloc[0]["guildIDs"].append(guildID)
+    if guildID not in gIDs: 
+        gIDs.append(guildID)
     #If this character is to be the default for this guild, we should associate them.
     if default: 
         try: #Try reassigning if exists
-            gRow.iloc[0]["mainCharIDs"][gRow.iloc[0]["guildIDs"].index(guildID)] = token
+            mcIDs[gIDs.index(guildID)] = token
         except IndexError: #If it doesn't, create it.
-            gRow.iloc[0]["mainCharIDs"].append(token)
-            if len(gRow.iloc[0]["mainCharIDs"]) < gRow.iloc[0]["guildIDs"].index(guildID): #If we still don't have that many indices,
+            mcIDs.append(token)
+            if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
     #Set up guild association for character.
+    print("allguilds?",allguilds)
+    #If it's set to all, overwrite the array with "all"
     if allguilds: 
         assocs = uRow.iloc[0]["guildAssociations"]
         assocs[pos] = "all"
         uRow.at[0,"guildAssociations"] = assocs
-    elif guildID not in uRow.iloc[0][2][pos]:
-        if uRow.iloc[0]["guildAssociations"][pos] == "all": 
+    #If it's not set to all,
+    elif guildID not in gAssoc[pos]:
+        #If it was previously set to all, overwrite.
+        if gAssoc[pos] == "all": 
             assocs = uRow.iloc[0]["guildAssociations"]
             assocs[pos] = [guildID]
             uRow.at[0,"guildAssociations"] = assocs
-        else: 
-            x = uRow.iloc[0]["guildAssociations"][0].append(guildID)
+        else: #Otherwise, append
+            x = gAssoc[pos]
+            x.append(guildID)
             uRow.at[0,"guildAssociations"] = x
+    print("guildassoc:",gAssoc)
     #Reformat data as necessary
     uRow.at[0,"guildAssociations"] = str(uRow.iloc[0]["guildAssociations"])
     uRow["charIDs"] = uRow["charIDs"].astype("str")
@@ -214,6 +245,10 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     if readonly: message += " In order to give the bot write access to your character sheet, please give editor status to its email and run this command again. Bot email: `discord-test@dungeon-ai-416903.iam.gserviceaccount.com`."
     await interaction.response.send_message(message,ephemeral=True)
 
+    #Reload edited databases.
+    users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection,dtype=types)
+    guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection,dtype=types)
+
 #view
 #view links for your (or specified) account
 @tree.command(
@@ -225,15 +260,17 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     private="Hide the message from other users in this server. (Default: True)"
 )
 async def view(interaction: discord.Interaction, char: str="all",private: bool=True):
-    message = "Characters found: \n =============== \n **ID | Name | default? | guild association | bot access \n"
-    guildID = interaction.guild.id
+    message = "Characters found: \n =============== \n **ID | Name | default? | guild association | bot access** \n"
+    guildID = str(interaction.guild.id)
     if interaction.user.id not in pd.to_numeric(users["userID"]).values:
         await interaction.response.send_message("You have not yet linked any characters!",ephemeral=private)
         return
     else:
         gRow = guilds.loc[guilds['userID'] == interaction.user.id]
         uRow = users.loc[users['userID'] == interaction.user.id]
-    if guildID not in gRow["guildIDs"]:
+    if any("all" in x for x in strtolist(uRow["guildAssociations"])):
+        pass
+    if guildID not in strtolist(gRow.iloc[0]["guildIDs"]):
         #Check later for any with 'all'
         pass
     if char == "all":
@@ -241,20 +278,24 @@ async def view(interaction: discord.Interaction, char: str="all",private: bool=T
     else: charlist = char.replace(" ","").split(",")
     for character in charlist:
         message += "`"+character+"` | "
-        message += str(sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])) + " | "
-        pos = uRow.iloc[0]["charIDs"].index(character)
-        message += str(gRow.iloc[0]["mainCharIDs"][gRow.iloc[0]["guildIDs"].index(guildID)]) + " | "
+        message += str(sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])[0][0]) + " | "
+        pos = strtolist(uRow.iloc[0]["charIDs"]).index(character)
+        mcIDs = strtolist(gRow.iloc[0]["mainCharIDs"])
+        gIDs = strtolist(gRow.iloc[0]["guildIDs"])
+        print(mcIDs,gIDs.index(guildID))
+        message += str(mcIDs[gIDs.index(guildID)] == character) + " | "
         #default status
-        guildassocs = uRow.iloc[0]["guildAssociations"][pos]
-        if len(guildassocs) > 1: #If there are multiple,
-            message += "Multiple, including this one"
-        elif guildID in guildassocs: #If there's just one, and it's this one,
-            message += "This guild only"
-        elif guildassocs == all:
-            message += "All guilds"
+        gAssoc = strtolist(uRow.iloc[0]["guildAssociations"])[pos]
+        if len(gAssoc) > 1: #If there are multiple,
+            print(gAssoc,len(gAssoc))
+            message += "Multiple, including this one | "
+        elif guildID in gAssoc: #If there's just one, and it's this one,
+            message += "This guild only | "
+        elif gAssoc == all:
+            message += "All guilds | "
         else:
-            raise ValueError("Something's wrong with guildassocs, which has value "+str(guildassocs))
-        if readonlytest: message += "read only"
+            raise ValueError("Something's wrong with gAssoc, which has value "+str(gAssoc))
+        if readonlytest(character): message += "read only"
         else: message += "writable"
     await interaction.response.send_message(message,ephemeral=private)
 
