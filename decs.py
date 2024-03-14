@@ -46,7 +46,7 @@ def strtolist(string):
     #Chop off the start/end brackets
     if(string[0] == "[" and string[-1] == "]"): string = string[1:-1]
     string = string.split(",") #Separate entries
-    #Strip excess whitespace and single-quotes
-    string = [x.strip().replace("'","") for x in string]
+    #Strip excess whitespace and quotes
+    string = [x.strip().replace("'","").replace('"',"") for x in string]
     if string == ['']: string = []
     return string

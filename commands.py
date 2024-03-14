@@ -1,9 +1,10 @@
 #Imports
 import discord, re
+import googleapiclient.errors
 import numpy as np
 import pandas as pd
 from decs import *
-import googleapiclient.errors
+from table2ascii import table2ascii as t2a
 
 #Setup
 users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection,dtype=types)
@@ -16,11 +17,13 @@ guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection,dt
     description="Lists available commands",
 )
 async def help(interaction: discord.Interaction):
-    message = """**help** - Prints this help menu.
-**roll** - Rolls a die, default 1d20, see command for options.
-**link** - Links a character sheet to your user for this server.
-**view** - View the character sheets that you've linked to this server."""
-    await interaction.response.send_message(message,ephemeral=True)
+    embed = discord.Embed(title="Commands")
+    embed.add_field(name="help",value="Prints this help menu.",inline=False)
+    embed.add_field(name="roll [dice] [goal] [private]",value="Rolls a die.",inline=False)
+    embed.add_field(name="link [url] [default] [allguilds]",value="Links a character sheet to your user.",inline=False)
+    embed.add_field(name="view [char]",value="View the character sheets that you've linked.",inline=False)
+    embed.add_field(name="unlink <char>",value="Unlink characters from yourself.",inline=False)
+    await interaction.response.send_message(embed=embed,ephemeral=True)
 
 #Basic die rolls.
 @tree.command(
@@ -256,11 +259,12 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     description="View a list of your character associations for this guild."
 )
 @discord.app_commands.describe(
-    char="'all,' ID,  or comma-separated list of IDs of characters you wish to view. (Default: all)",
+    char="'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
     private="Hide the message from other users in this server. (Default: True)"
 )
-async def view(interaction: discord.Interaction, char: str="all",private: bool=True):
-    message = "Characters found: \n =============== \n **ID | Name | default? | guild association | bot access** \n"
+async def view(interaction: discord.Interaction, char: str="guild",private: bool=True):
+    header = ["Name","ID","Default?","Guild(s)","Bot Access"]
+    #message = "Characters found: \n =============== \n **ID | Name | default? | guild association | bot access** \n"
     guildID = str(interaction.guild.id)
     if interaction.user.id not in pd.to_numeric(users["userID"]).values:
         await interaction.response.send_message("You have not yet linked any characters!",ephemeral=private)
@@ -269,38 +273,78 @@ async def view(interaction: discord.Interaction, char: str="all",private: bool=T
         gRow = guilds.loc[guilds['userID'] == interaction.user.id]
         uRow = users.loc[users['userID'] == interaction.user.id]
     if any("all" in x for x in strtolist(uRow["guildAssociations"])):
-        pass
-    if guildID not in strtolist(gRow.iloc[0]["guildIDs"]):
-        #Check later for any with 'all'
-        pass
-    if char == "all":
-        charlist = uRow["charIDs"]
+        allspresent = True
+    else: allspresent = False
+    if char == "guild":
+        if guildID not in strtolist(gRow.iloc[0]["guildIDs"]) and not allspresent: #If you asked for everything in this guild but there's nothing,
+            await interaction.response.send_message("You do not have any characters linked in this guild. Run with char set to `all` to view all linked characters.",ephemeral=private)
+            return
+        #print(uRow["charIDs"].values,strtolist(uRow["charIDs"].values)[0],strtolist(strtolist(uRow["charIDs"].values)[0]),strtolist(strtolist(uRow["charIDs"].values)[0])[0])
+        #for x in strtolist(uRow["charIDs"].values)[0]: print(x)
+        charlist = strtolist(strtolist(uRow["charIDs"].values)[0])
+        #Then prune the list.
+        for character in charlist:
+            pos = strtolist(uRow.iloc[0]["charIDs"]).index(character)
+            gAssoc = strtolist(uRow.iloc[0]["guildAssociations"])[pos]
+            if type(gAssoc) == str: gAssoc = [gAssoc]
+            gAssoc = [int(x) for x in gAssoc]
+            if int(guildID) not in gAssoc and "all" not in gAssoc: charlist.remove(character)
+    elif char == "all": charlist = strtolist(uRow["charIDs"].values)
     else: charlist = char.replace(" ","").split(",")
+    body = []
     for character in charlist:
-        message += "`"+character+"` | "
-        message += str(sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])[0][0]) + " | "
+        row = [str(sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])[0][0]),character,None,None,None]
         pos = strtolist(uRow.iloc[0]["charIDs"]).index(character)
         mcIDs = strtolist(gRow.iloc[0]["mainCharIDs"])
         gIDs = strtolist(gRow.iloc[0]["guildIDs"])
-        print(mcIDs,gIDs.index(guildID))
-        message += str(mcIDs[gIDs.index(guildID)] == character) + " | "
         #default status
+        try: row[2] = str(mcIDs[gIDs.index(guildID)] == character)
+        except IndexError: #If it's not associated with this guild
+            row[2] = "N/A"
         gAssoc = strtolist(uRow.iloc[0]["guildAssociations"])[pos]
-        if len(gAssoc) > 1: #If there are multiple,
-            print(gAssoc,len(gAssoc))
-            message += "Multiple, including this one | "
-        elif guildID in gAssoc: #If there's just one, and it's this one,
-            message += "This guild only | "
-        elif gAssoc == all:
-            message += "All guilds | "
-        else:
-            raise ValueError("Something's wrong with gAssoc, which has value "+str(gAssoc))
-        if readonlytest(character): message += "read only"
-        else: message += "writable"
-    await interaction.response.send_message(message,ephemeral=private)
+        if type(gAssoc) == str: gAssoc = [gAssoc]
+        gAssoc = [int(x) for x in gAssoc]
+        if len(gAssoc) > 1 and int(guildID) in gAssoc: #If there are multiple,
+            row[3] = "Multiple, including this one"
+        elif int(guildID) in gAssoc: #If there's just one, and it's this one,
+            row[3] = "This guild only"
+        elif gAssoc == "all": row[3] = "All guilds"
+        else: #Assume that it's a list that doesn't contain the current guild and print it.
+            row[3] = str(gAssoc)
+        if readonlytest(character): row[4] = "Read Only"
+        else: row[4] = "Writable"
+    body.append(row)
+    output = t2a(header=header,body=body,first_col_heading=True)
+    #await interaction.response.send_message(message,ephemeral=private)
+    await interaction.response.send_message(f"**Characters found:**\n```\n"+output+"\n```",ephemeral=private)
 
 #async def unlink()
 #Let someone unlink data.
+@tree.command(
+    name="unlink",
+    description="Unlink one or more characters from yourself."
+)
+@discord.app_commands.describe(
+    char="'all', 'guild', a character ID, or a comma-separated list of IDs. (Required)"
+)
+async def unlink(interaction: discord.Interaction, char: str):
+    global users,guilds
+    if char == "all":
+        #delete everything
+        index = users["userID"].index(interaction.user.id)
+        index == guilds["userID"].index(interaction.user.id)
+        await interaction.response.send_message("All of your user data was deleted from the bot's database.",ephemeral=True)
+        pass
+    elif char == "guild":
+        #find everything associated only with this guild, and construct a list
+        #For things with multiple guild associations, remove this guild's instance.
+        #charlist = ?
+        pass
+    else:
+        #parse the list
+        charlist = char.replace(" ","").split(",")
+    #Now do the one-by-one deletion
+    await interaction.response.send_message("The following character IDs were unlinked: "+charlist+".",ephemeral=True)
 
 #Other commands to write:
 #skillroll (roll the associated skill+modifiers, this is the main function we want)
