@@ -132,11 +132,13 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         mcIDs = gRow.iloc[0]["mainCharIDs"]
         roArray = uRow.iloc[0]["readonly"]
     else:
+        #Pull up the existing data.
         gRow = guilds.loc[guilds['userID'] == interaction.user.id]
         uRow = users.loc[users['userID'] == interaction.user.id]
+        #Setup
         message = "Updated "
         concat = False
-
+        #Parse the information that was present
         cIDs = strtolist(uRow.iloc[0]["charIDs"])
         gAssoc = strtolist(uRow.iloc[0]["guildAssociations"])
         gAssoc = [strtolist(x) for x in gAssoc]
@@ -144,6 +146,16 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         gIDs = [int(x) for x in gIDs]
         mcIDs = strtolist(gRow.iloc[0]["mainCharIDs"])
         roArray = strtolist(uRow.iloc[0]["readonly"])
+        #See if the token is already associated with this guild and allguild and default statuses are not changing, and that the readonly status wouldn't change.
+        if gAssoc[pos] != "all": 
+            print(gAssoc)
+            gAssoc[pos] = [int(x) for x in gAssoc[pos]]
+        print("anything to do? \n",guildID in gAssoc[pos] and not allguilds,readonly,roArray[pos] == False)
+        if ((guildID in gAssoc[pos] and not allguilds) or (gAssoc[pos] == "all" and allguilds)) and readonly == (roArray[pos] == "True"):
+            print("checking default",mcIDs[gIDs.index(guildID)],default,token in mcIDs[gIDs.index(guildID)])
+            if (token in mcIDs[gIDs.index(guildID)]) == default:
+                await interaction.response.send_message("This character is already linked as described. Nothing to do!",ephemeral=True)
+                return
     if False: #commenting these out for now until char db set up -- which is maybe never!
         if token not in chars["charID"]: 
             cRow = [token] 
@@ -169,17 +181,6 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     else: name = name[0][0]
     #Test write to the character sheet.
     readonly = readonlytest(token)
-    #See if the token is already associated with this guild and allguild and default statuses are not changing, and that the readonly status wouldn't change.
-    
-    if gAssoc[pos] != "all": 
-        print(gAssoc)
-        gAssoc[pos] = [int(x) for x in gAssoc[pos]]
-    print("anything to do? \n",guildID in gAssoc[pos] and not allguilds,readonly,roArray[pos] == False)
-    if ((guildID in gAssoc[pos] and not allguilds) or (gAssoc[pos] == "all" and allguilds)) and readonly == (roArray[pos] == "True"):
-        print("checking default",mcIDs[gIDs.index(guildID)],default,token in mcIDs[gIDs.index(guildID)])
-        if (token in mcIDs[gIDs.index(guildID)]) == default:
-            await interaction.response.send_message("This character is already linked as described. Nothing to do!",ephemeral=True)
-            return
     #Update read-only status now that it's been checked.
     try:
         roArray[pos] = readonly
@@ -195,6 +196,13 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             mcIDs[gIDs.index(guildID)] = token
         except IndexError: #If it doesn't, create it.
             mcIDs.append(token)
+            if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
+                raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
+    else:
+        try: #Try reassigning if exists
+            mcIDs[gIDs.index(guildID)] = None
+        except:
+            mcIDs.append(None)
             if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
     #Set up guild association for character.
@@ -341,20 +349,78 @@ async def unlink(interaction: discord.Interaction, char: str):
     global users,guilds
     if char == "all":
         #delete everything
-        index = users["userID"].index(interaction.user.id)
-        index == guilds["userID"].index(interaction.user.id)
+        users = users[users["userID"] != interaction.user.id]
+        guilds = guilds[guilds["userID"] != interaction.user.id]
+        users.to_sql(name='users',con=connection,if_exists="replace")
+        guilds.to_sql(name='guilds',con=connection,if_exists="replace")
         await interaction.response.send_message("All of your user data was deleted from the bot's database.",ephemeral=True)
-        pass
-    elif char == "guild":
+        #Reload edited databases.
+        users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection,dtype=types)
+        guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection,dtype=types)
+        return
+    guildID = str(interaction.guild.id)
+    #Pull up the existing data.
+    gRow = guilds.loc[guilds['userID'] == interaction.user.id]
+    uRow = users.loc[users['userID'] == interaction.user.id]
+    #Parse the information that was present
+    cIDs = strtolist(uRow.iloc[0]["charIDs"])
+    gAssoc = strtolist(uRow.iloc[0]["guildAssociations"])
+    gAssoc = [strtolist(x) for x in gAssoc]
+    gIDs = strtolist(gRow.iloc[0]["guildIDs"])
+    gIDs = [int(x) for x in gIDs]
+    mcIDs = strtolist(gRow.iloc[0]["mainCharIDs"])
+    roArray = strtolist(uRow.iloc[0]["readonly"])
+    if char == "guild":
         #find everything associated only with this guild, and construct a list
-        #For things with multiple guild associations, remove this guild's instance.
-        #charlist = ?
-        pass
+        charlist = []
+        for i,x in enumerate(cIDs):
+            if gAssoc[i] == [guildID]: charlist.append(x)
+            elif guildID in gAssoc[i]: #For things with multiple guild associations, remove this guild's instance.
+                #remove the association, but not the character
+                gAssoc[i].remove(guildID) #delete that entry from this list 
+                uRow.at[0,"guildAssociations"] = gAssoc #and rewrite into uRow
+                pass
+        #Now delete this guild from gRow
+        print(gIDs,guildID,guildID in gIDs,type(gIDs[0]),type(guildID))
+        try:
+            gloc = gIDs.index(guildID)
+        except ValueError: #Assume that it's a type mismatch
+            guildID = int(guildID)
+            try:
+                gloc = gIDs.index(guildID)
+            except ValueError: #If it's not, then there's nothing to do.
+                await interaction.response.send_message("There is no character data associated with this guild.")
+                return
+        gIDs.pop(gloc); mcIDs.pop(gloc)
+        gRow.at[0,"guildIDs"] = gIDs
+        #gRow.at[0,"mainCharIDs"] = mcIDs #We're doing this again later, so save the processor some work.
     else:
         #parse the list
         charlist = char.replace(" ","").split(",")
-    #Now do the one-by-one deletion
-    await interaction.response.send_message("The following character IDs were unlinked: "+charlist+".",ephemeral=True)
+    
+    #Delete the main character ID from the guild list.
+    for i,x in enumerate(mcIDs):
+        if x in charlist: mcIDs[i] = None
+    gRow.at[0,"mainCharIDs"] = mcIDs
+    
+    #Now do the one-by-one deletion from the users.
+    print(uRow,charlist)
+    unfound = []
+    for x in charlist:
+        try:
+            pos = cIDs.index(x)
+        except ValueError: #It's not there
+            unfound.append(x)
+            charlist.remove(x)
+        
+    #Rewrite gRow,uRow to the users,guilds
+    #And then those to the database
+    #Reload edited databases.
+    users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection,dtype=types)
+    guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection,dtype=types)
+    message = "The following character IDs were unlinked: "+str(charlist)+"."
+    if unfound: message += " The following character IDs were specified but not found for removal: "+str(unfound)+"."
+    await interaction.response.send_message(message,ephemeral=True)
 
 #Other commands to write:
 #skillroll (roll the associated skill+modifiers, this is the main function we want)
