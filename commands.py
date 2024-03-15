@@ -293,8 +293,15 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
     else: charlist = char.replace(" ","").split(",")
     body = []
     for character in charlist:
-        row = [str(sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])[0][0]),character,None,None,None]
-        pos = strtolist(uRow.iloc[0]["charIDs"]).index(character)
+        try: #Check that the character sheet is readable
+            name = str(sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])[0][0])
+        except HttpError:
+            name = "(Unreachable)"
+        row = [name,character,None,None,None]
+        try: #Check that the character sheet is associated with the user.
+            pos = strtolist(uRow.iloc[0]["charIDs"]).index(character)
+        except ValueError: #If it's not,
+            continue #Skip this iteration.
         mcIDs = strtolist(gRow.iloc[0]["mainCharIDs"])
         gIDs = strtolist(gRow.iloc[0]["guildIDs"])
         #default status
@@ -311,9 +318,12 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
         elif gAssoc == "all": row[3] = "All guilds"
         else: #Assume that it's a list that doesn't contain the current guild and print it.
             row[3] = str(gAssoc)
-        if readonlytest(character): row[4] = "Read Only"
-        else: row[4] = "Writable"
-    body.append(row)
+        if name != "(Unreachable)":
+            if readonlytest(character): row[4] = "Read Only"
+            else: row[4] = "Writable"
+        else:
+            row[4] = "No Access"
+        body.append(row)
     output = t2a(header=header,body=body,first_col_heading=True)
     #await interaction.response.send_message(message,ephemeral=private)
     await interaction.response.send_message(f"**Characters found:**\n```\n"+output+"\n```",ephemeral=private)
