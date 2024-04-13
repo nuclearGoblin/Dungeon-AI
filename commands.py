@@ -409,10 +409,20 @@ async def unlink(interaction: discord.Interaction, char: str):
     for x in charlist:
         try:
             pos = cIDs.index(x)
+
         except ValueError: #It's not there
             unfound.append(x)
             charlist.remove(x)
-        
+    
+    #Remove empty guilds
+    emptyguilds = 0
+    for gID in gIDs:
+        #if guild is not associated with anything,
+        for lst in gAssoc:
+            if str(gID) not in lst and gID not in lst:
+                #delete it.
+                emptyguilds += 1
+
     #Rewrite gRow,uRow to the users,guilds
     #And then those to the database
     #Reload edited databases.
@@ -420,6 +430,11 @@ async def unlink(interaction: discord.Interaction, char: str):
     guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection,dtype=types)
     message = "The following character IDs were unlinked: "+str(charlist)+"."
     if unfound: message += " The following character IDs were specified but not found for removal: "+str(unfound)+"."
+    if emptyguilds: 
+        message += " "+str(emptyguilds)+" guild"
+        if emptyguilds>1: message += "s no longer have"
+        else: message += " no longer has"
+        message += " linked characters after this."
     await interaction.response.send_message(message,ephemeral=True)
 
 #Other commands to write:
