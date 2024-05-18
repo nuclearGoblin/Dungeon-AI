@@ -381,7 +381,7 @@ async def unlink(interaction: discord.Interaction, char: str):
                 uRow.at[0,"guildAssociations"] = gAssoc #and rewrite into uRow
                 pass
         #Now delete this guild from gRow
-        print(gIDs,guildID,guildID in gIDs,type(gIDs[0]),type(guildID))
+        #print(gIDs,guildID,guildID in gIDs,type(gIDs[0]),type(guildID)) #debug
         try:
             gloc = gIDs.index(guildID)
         except ValueError: #Assume that it's a type mismatch
@@ -409,21 +409,51 @@ async def unlink(interaction: discord.Interaction, char: str):
     for x in charlist:
         try:
             pos = cIDs.index(x)
-
+            if char != "guild":
+                print(gRow.at[0,'mainCharIDs'],gRow["mainCharIDs"],type(gRow.at[0,'mainCharIDs']))
+                print(gRow.keys(),uRow.keys())
+                print(gRow)
+                print("Pop...")
+                mcIDs.pop(pos)
+                #gRow.at[0,"mainCharIDs"] = gtemp.pop(pos)
+                print(mcIDs)
+                print("Pop!")
+            print(uRow)
+            print(type(uRow.at[0,"charIDs"]))
+            cIDs.pop(pos); gAssoc.pop(pos); roArray.pop(pos)
+            print(gAssoc)
+            #print(uRow) #Not updated yet
         except ValueError: #It's not there
             unfound.append(x)
             charlist.remove(x)
     
     #Remove empty guilds
     emptyguilds = 0
-    for gID in gIDs:
+    for guildID in gIDs:
         #if guild is not associated with anything,
         for lst in gAssoc:
-            if str(gID) not in lst and gID not in lst:
+            if str(guildID) not in lst and guildID not in lst:
                 #delete it.
+                try:
+                    gloc = gIDs.index(guildID)
+                except ValueError: #Assume that it's a type mismatch
+                    guildID = int(guildID)
+                    try:
+                        gloc = gIDs.index(guildID)
+                    except ValueError: #If it's not, then there's nothing to do.
+                        await interaction.response.send_message("There is no character data associated with this guild.")
+                        return
+                gIDs.pop(gloc); mcIDs.pop(gloc)
+                gRow.at[0,"guildIDs"] = gIDs
                 emptyguilds += 1
 
+    gRow.at[0,"mainCharIDs"] = str(mcIDs)
+    uRow.at[0,"charIDs"] = str(cIDs)
+    uRow.at[0,"guildAssociations"] = str(gAssoc)
+    uRow.at[0,"readonly"] = str(roArray)
+
     #Rewrite gRow,uRow to the users,guilds
+    
     #And then those to the database
     #Reload edited databases.
     users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection,dtype=types)
