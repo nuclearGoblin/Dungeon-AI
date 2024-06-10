@@ -1,10 +1,10 @@
 # Dungeon AI
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) 
-[TODO:] link API/usage documentation once it exists
+
+[Add to Guild](https://discord.com/oauth2/authorize?client_id=1193959024614461540&integration_type=0&scope=applications.commands)
 
 Dungeon AI is a discord bot in progress for [Dungeon Crawler World](https://docs.google.com/document/d/14qkOLhg9iDBqj0Go3g6nb2oTCQBHuCwg3gOzaIzFHFE/edit?usp=drive_link). 
-When it is completed, this file will contain information such as [TODO:]  an invite link for the bot.
 
 The bot *requires* you to use a COPY of [this google sheet](https://docs.google.com/spreadsheets/d/13yPf5jfGhHrjWoUe-_2rG-L97UMAkk6MB7n-kecQvig/edit?usp=drivesdk) as your character sheet. Changes to the sheet's format *will* break the bot.
 
@@ -32,8 +32,6 @@ be able to manage.
 The bot looks for the following environment variables, which can be stored in a `.env` file:
 - `DISCORD_TOKEN`: The token that Discord associates with the bot instance.
 - `TEST_SERVER_ID`: The guild ID of a guild hosting the bot. This is, naturally, intended for command testing.
-
-[TODO:] this section. can be basic. just need to tell people where to put auth keys & such.
 
 # Bug Reports & Other Requests
 
