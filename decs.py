@@ -1,11 +1,17 @@
 #Imports
-import discord, json
+import discord, json, os
 import sqlite3 as sql
 import numpy as np
 from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+#Track if we're in doc build mode or run mode.
+try:
+    SPHINX = os.environ['SPHINX']
+except KeyError:
+    SPHINX = None
 
 #Load up environment envs
 load_dotenv()
@@ -23,7 +29,11 @@ types = {'userID': np.dtype('int64')}
 
 #Google stuff
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-creds = service_account.Credentials.from_service_account_info(json.load(open("service.json")))
+if SPHINX == "sphinx":
+    creds = ""
+else:
+    print(SPHINX)
+    creds = service_account.Credentials.from_service_account_info(json.load(open("service.json")))
 service = build("sheets","v4",credentials=creds)
 sheet = service.spreadsheets()
 

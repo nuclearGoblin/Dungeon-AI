@@ -14,13 +14,16 @@ SAMPLE_SPREADSHEET_ID = "1sRKjgEWwBr9cS_9KEvog6Y6_Ud3E0wI3URK56seRcmc"
 SAMPLE_RANGE_NAME = "Character Sheet!B2:B5"
 
 #Call the Google API to make sure it's working.
-result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,range=SAMPLE_RANGE_NAME).execute()
-values = result.get("values",[])
-if not values:
-    raise ValueError("No data found in spreadsheet "+SAMPLE_SPREADSHEET_ID)
+if mode == "sphinx":
+    pass
 else:
-    print("DEBUG =================")
-    for row in values: print(row)
+    result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,range=SAMPLE_RANGE_NAME).execute()
+    values = result.get("values",[])
+    if not values:
+        raise ValueError("No data found in spreadsheet "+SAMPLE_SPREADSHEET_ID)
+    else:
+        print("DEBUG =================")
+        for row in values: print(row)
 
 #Check the database on spin-up -- don't want things to blip on if they're broken.
 try: #Check if the tables needed exist
@@ -54,4 +57,7 @@ async def on_ready():
     await tree.sync()
     print(f'{client.user} has connected to Discord!')
 #Run 
+if SPHINX == "sphinx":
+    print("Finished running in sphinx mode. Exiting!")
+    exit(0)
 client.run(TOKEN)

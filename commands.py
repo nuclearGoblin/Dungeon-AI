@@ -1,3 +1,9 @@
+"""
+commands
+
+This module contains the commands usable through discord with the Dungeon AI bot. 
+"""
+
 #Imports
 import discord, re
 import googleapiclient.errors
@@ -13,33 +19,46 @@ guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection,dt
 
 #List of commands. Important!
 @tree.command(
-    name="help",
-    description="Lists available commands",
+    #name="help",description="Lists available commands" #moved to docstring
 )
 async def help(interaction: discord.Interaction):
+    """
+    Lists available commands.
+    """
     embed = discord.Embed(title="Commands")
     embed.add_field(name="help",value="Prints this help menu.",inline=False)
     embed.add_field(name="roll [dice] [goal] [private]",value="Rolls a die.",inline=False)
-    embed.add_field(name="link [url] [default] [allguilds]",value="Links a character sheet to your user.",inline=False)
+    embed.add_field(name="link <url> [default] [allguilds]",value="Link a character sheet to your user.",inline=False)
     embed.add_field(name="view [char]",value="View the character sheets that you've linked.",inline=False)
     embed.add_field(name="unlink <char>",value="Unlink characters from yourself.",inline=False)
     await interaction.response.send_message(embed=embed,ephemeral=True)
 
 #Basic die rolls.
 @tree.command(
-    name="roll",
-    description="Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier."
+    #name="roll", description="Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier." #moved to docstring
 )
-@discord.app_commands.describe(
-    dice="String representing the dice rolled, in format `XdY+Z`, `XdY-Z`, or `XdY`. (Default: 1d20)",
-    goal="Value to meet or exceed.",
-    private="Hide roll from other users. (Default: False)"
+#@discord.app_commands.describe(
+#    dice="String representing the dice rolled, in format `XdY+Z`, `XdY-Z`, or `XdY`. (Default: 1d20)",
+#    goal="Value to meet or exceed.",
+#    private="Hide roll from other users. (Default: False)"
     #mod="Modifier for the die roll.",
     #high="Maximum value of the dice rolled (for XdY, this is Y).",
     #low="Minimum value of the dice rolled (for normal dice, this is 1).",
     #numdice="How many dice to roll (for XdY, this is X)."
-)
+#)
 async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, private: bool=False):#, mod: int=0, high: int=20, low: int=1, numdice: int=1): #don't really need all these anymore.
+    """
+    Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier.
+
+    Parameters
+    dice: str
+        String representing the dice rolled, in format `XdY+Z`, `XdY-Z`, or `XdY`. (Default: 1d20)
+    goal: int
+        Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
+    private: bool
+        Hide your roll and result from other users. (Default: False)
+    ----------
+    """
     mod = 0; high = 20; numdice = 1; #Defaults -- comment out if you reinclude the extra args.
     #Take a human-looking dice input
     if dice != "":
@@ -98,15 +117,26 @@ async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, p
 
 #Character sheet linking
 @tree.command(
-    name="link",
-    description="Links a character sheet to your user on this server. If already linked, modifies link settings."
-)
-@discord.app_commands.describe(
-    url="The URL of your character sheet.",
-    default="Set the character sheet as your default character sheet for the current guild. (Default: True)",
-    allguilds="Access this character sheet from all Discord servers you are in. (Default: False).",
-)
+    #name="link", description="Links a character sheet to your user on this server. If already linked, modifies link settings."
+) #moved to docstring
+#@discord.app_commands.describe(
+#    url="The URL of your character sheet.",
+#    default="Set the character sheet as your default character sheet for the current guild. (Default: True)",
+#    allguilds="Access this character sheet from all Discord servers you are in. (Default: False).",
+#)
 async def link(interaction: discord.Interaction, url: str="", default: bool=True, allguilds: bool=False):
+    """
+    Links a character sheet to your user on this server. If already linked, modifies link settings.
+
+    Parameters
+    ----------
+    url: str
+        The URL or token of your character sheet. (Required)
+    default: bool
+        Set the character sheet as your default character sheet for the current server. (Default: True)
+    allguilds: bool
+        Make this character sheet accessible from all Discord servers you are in (Default: False)
+    """
     global users,guilds#,chars
     #Token interpretation
     if "." in url: #This is a full URL, so we need to strip it
@@ -263,14 +293,23 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
 #view
 #view links for your (or specified) account
 @tree.command(
-    name="view",
-    description="View a list of your character associations for this guild."
-)
-@discord.app_commands.describe(
-    char="'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
-    private="Hide the message from other users in this server. (Default: True)"
-)
+    #name="view", description="View a list of your character associations for this guild."
+) #moved to docstring
+#@discord.app_commands.describe(
+#    char="'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
+#    private="Hide the message from other users in this server. (Default: True)"
+#)
 async def view(interaction: discord.Interaction, char: str="guild",private: bool=True):
+    """
+    View a list of your characters.
+
+    Parameters
+    ----------
+    char: str
+        "'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
+    private: bool
+        Hide the message from other users in this server. (Default: True)
+    """
     header = ["Name","ID","Default?","Guild(s)","Bot Access"]
     #message = "Characters found: \n =============== \n **ID | Name | default? | guild association | bot access** \n"
     guildID = str(interaction.guild.id)
@@ -339,13 +378,20 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
 #async def unlink()
 #Let someone unlink data.
 @tree.command(
-    name="unlink",
-    description="Unlink one or more characters from yourself."
-)
-@discord.app_commands.describe(
-    char="'all', 'guild', a character ID, or a comma-separated list of IDs. (Required)"
-)
+    #name="unlink", description="Unlink one or more characters from yourself."
+) #moved to docstring
+#@discord.app_commands.describe(
+#    char="'all', 'guild', a character ID, or a comma-separated list of IDs. (Required)"
+#)
 async def unlink(interaction: discord.Interaction, char: str):
+    """
+    Unlink one or more characters from yourself.
+
+    Parameters
+    ----------
+    char: str
+        'all', 'guild', a character ID, or a comma-separated list of IDs. (Required)
+    """
     global users,guilds
     if char == "all":
         #delete everything
@@ -468,6 +514,9 @@ async def unlink(interaction: discord.Interaction, char: str):
     await interaction.response.send_message(message,ephemeral=True)
 
 #Other commands to write:
+#verify (check the read/writability of a character sheet and update the db entry if necessary)
+# - this is a feature I see other functions using so make it its own function
 #skillroll (roll the associated skill+modifiers, this is the main function we want)
+# - functions within this will be called by skillroll
 #requestroll (be able to request players click a button and roll a thing.)
 #configure (bot settings per server, maybe uses a third table, things like who can view sheets and request rolls.)
