@@ -36,8 +36,8 @@ jobs:
       run: |
         pip install -r requirements.txt
         pip install -r sphinx/doc-requirements.txt
-        sphinx-build -M html sphinx/source sphinx/build
-        mv sphinx/build/html .github/wiki
+        sphinx-build -M singlehtml sphinx/source sphinx/build
+        mv sphinx/build/singlehtml .github/wiki
         ls .github/wiki
     - uses: spenserblack/actions-wiki@v0.3.0
     
