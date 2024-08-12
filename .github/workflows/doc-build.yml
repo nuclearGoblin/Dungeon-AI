@@ -40,5 +40,5 @@ jobs:
         mkdir .git/wiki
         mv sphinx/build .git/wiki
         ls .git/wiki
-    - uses: spenserblack/actions-wiki
+    - uses: spenserblack/actions-wiki@v0.3.0
 
