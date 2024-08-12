@@ -3,6 +3,9 @@
 
 name: Build Docs
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ "main" ]
@@ -13,7 +16,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  wiki:
 
     runs-on: ubuntu-latest
 
@@ -41,4 +44,5 @@ jobs:
         mv sphinx/build .github/wiki
         ls .github/wiki
     - uses: spenserblack/actions-wiki@v0.3.0
+    
 
