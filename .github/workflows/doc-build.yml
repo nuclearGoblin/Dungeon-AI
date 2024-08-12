@@ -34,4 +34,6 @@ jobs:
       env:
         SPHINX: "sphinx"
       run: |
+        pip install requirements.txt
+        pip install sphinx/doc-requirements.txt
         sphinx-build -M html sphinx/source sphinx/build
