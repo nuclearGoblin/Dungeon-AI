@@ -18,7 +18,8 @@ sys.path.insert(0, os.path.abspath('../../'))
 #sys.path.insert(0, os.path.abspath('_extensions'))
 
 extensions = [#'sphinx.ext.autosummary',
-              'sphinx.ext.autodoc'
+              'sphinx.ext.autodoc',
+              'sphinx_markdown_builder'
               #,'attributetable'
               ]
 
