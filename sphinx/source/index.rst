@@ -3,9 +3,9 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-######################################
-Welcome to Dungeon AI's documentation!
-######################################
+   ######################################
+   Welcome to Dungeon AI's documentation!
+   ######################################
 
 ..
    .. autosummary::
@@ -30,24 +30,17 @@ Welcome to Dungeon AI's documentation!
 Commands
 ========
 
-.. automodule:: commands
+Below are DungeonAI's commands. The bot relies on slash commands; this means, for example, that you can run help() by typing "/help".
 
-* `help`_
-* `link`_
-* `roll`_
-* `unlink`_
-* `view`_
+.. 
+   _help:
 
-.. _help:
-
-help
-****
-
-/help
+   help
+   ****
 
 .. py:function:: help()
    
-   Lists available commands.
+   `/help` - Lists available commands.
 
    :return:
       | """
@@ -58,16 +51,15 @@ help
       | **unlink <char>:** Unlink characters from yourself.
       | """
 
-.. _link:
+.. 
+   _link:
 
-link
-****
-
-/link
+   link
+   ****
 
 .. py:function:: link(url,default=True,allguilds=False)
 
-   Links a character sheet to your user on this server. If already linked, modifies link settings.
+   `/link` - Links a character sheet to your user on this server. If already linked, modifies link settings.
 
    :param url: The URL or token of your character sheet. (Required)
    :type url: str
@@ -77,16 +69,15 @@ link
    :type allguilds: bool
    :return: Message indicating the character ID, guild association status, and default status.
 
-.. _roll:
+.. 
+   _roll:
 
-roll
-****
-
-/roll
+   roll
+   ****
 
 .. py:function:: roll(dice='1d20',goal=None,private=False)
 
-   Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier.
+   `/roll` - Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier.
 
    :param dice: String representing the dice rolled, in format `XdY+Z`, `XdY-Z`, or `XdY`. (Default: 1d20)
    :type dice: str
@@ -96,31 +87,29 @@ roll
    :type private: bool
    :return: Message indicating the rolled value and, if a goal was provided, whether it was a success or failure.
 
-.. _unlink:
+.. 
+   _unlink:
 
-unlink
-******
-
-/unlink
+   unlink
+   ******
 
 .. py:function:: unlink(char)
 
-   Unlink one or more characters from yourself.
+   `/unlink` - Unlink one or more characters from yourself.
 
    :param char: 'all', 'guild', a character ID, or a comma-separated list of IDs. (Required)
    :type char: str
    :return: Message indicating successfully removed data and data that was requested to be moved but was not present.
 
-.. _view:
+.. 
+   _view:
 
-view
-****
-
-/view
+   view
+   ****
 
 .. py:function:: view(char='guild',private=True)
 
-   View a list of your characters.
+   `/view` - View a list of your characters.
 
    :param char: 'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)
    :type char: str
