@@ -37,8 +37,7 @@ jobs:
         pip install -r requirements.txt
         pip install -r sphinx/doc-requirements.txt
         sphinx-build -M html sphinx/source sphinx/build
-        mkdir .github/wiki
-        mv sphinx/build .github/wiki
+        mv sphinx/build/html .github/wiki
         ls .github/wiki
     - uses: spenserblack/actions-wiki@v0.3.0
     
