@@ -40,7 +40,7 @@ Below are DungeonAI's commands. The bot relies on slash commands; this means, fo
 
 .. py:function:: help()
    
-   `/help` - Lists available commands.
+   **/help** - Lists available commands.
 
    :return:
       | """
@@ -59,7 +59,7 @@ Below are DungeonAI's commands. The bot relies on slash commands; this means, fo
 
 .. py:function:: link(url,default=True,allguilds=False)
 
-   `/link` - Links a character sheet to your user on this server. If already linked, modifies link settings.
+   **/link** - Links a character sheet to your user on this server. If already linked, modifies link settings.
 
    :param url: The URL or token of your character sheet. (Required)
    :type url: str
@@ -77,7 +77,7 @@ Below are DungeonAI's commands. The bot relies on slash commands; this means, fo
 
 .. py:function:: roll(dice='1d20',goal=None,private=False)
 
-   `/roll` - Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier.
+   **/roll** - Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier.
 
    :param dice: String representing the dice rolled, in format `XdY+Z`, `XdY-Z`, or `XdY`. (Default: 1d20)
    :type dice: str
@@ -95,7 +95,7 @@ Below are DungeonAI's commands. The bot relies on slash commands; this means, fo
 
 .. py:function:: unlink(char)
 
-   `/unlink` - Unlink one or more characters from yourself.
+   **/unlink** - Unlink one or more characters from yourself.
 
    :param char: 'all', 'guild', a character ID, or a comma-separated list of IDs. (Required)
    :type char: str
@@ -109,7 +109,7 @@ Below are DungeonAI's commands. The bot relies on slash commands; this means, fo
 
 .. py:function:: view(char='guild',private=True)
 
-   `/view` - View a list of your characters.
+   **/view** - View a list of your characters.
 
    :param char: 'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)
    :type char: str
