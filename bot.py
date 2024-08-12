@@ -14,9 +14,7 @@ SAMPLE_SPREADSHEET_ID = "1sRKjgEWwBr9cS_9KEvog6Y6_Ud3E0wI3URK56seRcmc"
 SAMPLE_RANGE_NAME = "Character Sheet!B2:B5"
 
 #Call the Google API to make sure it's working.
-if SPHINX == "sphinx":
-    pass
-else:
+if SPHINX != "sphinx":
     result = sheet.values().get(spreadsheetId=SAMPLE_SPREADSHEET_ID,range=SAMPLE_RANGE_NAME).execute()
     values = result.get("values",[])
     if not values:
