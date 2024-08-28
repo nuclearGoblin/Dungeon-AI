@@ -43,3 +43,12 @@ jobs:
         TEST_SERVER_ID: ${{ secrets.TEST_SERVER_ID }}
       run: |
         timeout --preserve-status 10s python bot.py || if [ $? -eq 143 ]; then echo "timeout closed the bot."; else exit 1; fi
+    - name: Build docs
+      env:
+        SPHINX: "sphinx"
+      run: |
+        pip install -r sphinx/doc-requirements.txt
+        sphinx-build -M markdown sphinx/source sphinx/build
+        mkdir .github/wiki
+        mv sphinx/build/markdown/index.md .github/wiki/Home.md
+    - uses: spenserblack/actions-wiki@v0.3.0
