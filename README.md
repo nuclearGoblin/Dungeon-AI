@@ -24,6 +24,9 @@ If you have concerns about your data being stored on our server(s), please eithe
 how we can fix this or create your own instance by cloning this repository.
 
 # Self-hosting
+Self-hosting is encouraged! Data is not shared across hosts, although there is nothing stopping you from
+linking the same character sheet to multiple hosts.
+
 This bot has two components requires two authorizations: one for Discord and one for the Google API.
 Google API key setup is optional, but skipping it will result in only being able to access public sheets and having no write priveleges.
 This guide is not comprehensive, but provides enough information that those who are familiar with running servers should
@@ -32,6 +35,8 @@ be able to manage.
 The bot looks for the following environment variables, which can be stored in a `.env` file:
 - `DISCORD_TOKEN`: The token that Discord associates with the bot instance.
 - `TEST_SERVER_ID`: The guild ID of a guild hosting the bot. This is, naturally, intended for command testing.
+You will also need to edit the `botmail` variable in `decs.py` so that users are given the correct address
+to share sheets with.
 
 # Bug Reports & Other Requests
 
