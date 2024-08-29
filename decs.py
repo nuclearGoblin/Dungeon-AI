@@ -35,7 +35,7 @@ else:
     creds = service_account.Credentials.from_service_account_info(json.load(open("service.json")))
 service = build("sheets","v4",credentials=creds)
 sheet = service.spreadsheets()
-botmail = discord-test@dungeon-ai-416903.iam.gserviceaccount.com #for sheet editing only.
+botmail = "discord-test@dungeon-ai-416903.iam.gserviceaccount.com" #for sheet editing only.
 
 #Microfunctions
 def readonlytest(token):
