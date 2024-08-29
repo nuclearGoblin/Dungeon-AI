@@ -32,7 +32,6 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 if SPHINX == "sphinx":
     creds = ""
 else:
-    print(SPHINX)
     creds = service_account.Credentials.from_service_account_info(json.load(open("service.json")))
 service = build("sheets","v4",credentials=creds)
 sheet = service.spreadsheets()
@@ -60,3 +59,21 @@ def strtolist(string):
     string = [x.strip().replace("'","").replace('"',"") for x in string]
     if string == ['']: string = []
     return string
+
+def retrievename(token):
+    try:
+        name = sheet.values().get(spreadsheetId=token,range="Character Sheet!C2").execute().get("values",[])[0][0]
+    except IndexError:
+        name = "NAME_NOT_FOUND"
+    return name
+
+def assocformat(gAssoc,allowed=["all"]):
+    gAssocnew = []
+    for x in gAssoc:
+        if x in allowed:
+            gAssocnew.append(x)
+        else:
+            x = strtolist(x)[0]
+            gAssocnew.append(int(x))
+    return gAssocnew
+    
