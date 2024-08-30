@@ -180,7 +180,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     try:
         name = retrievename(token)
     except googleapiclient.errors.HttpError:
-        await interaction.response.send_message("Unable to reach character sheet. Please make sure that it is either public or shared with the bot, whose email is: `discord-test@dungeon-ai-416903.iam.gserviceaccount.com`. If you provided a complete url, try providing only the token -- if that works, please submit a [bug report](https://github.com/nuclear-goblin/Dungeon-AI/issues",ephemeral=True)
+        await interaction.response.send_message("Unable to reach character sheet. Please make sure that it is either public or shared with the bot, whose email is: `"+botmail+"`. If you provided a complete url, try providing only the token -- if that works, please submit a [bug report on our GitHub](https://github.com/nuclear-goblin/Dungeon-AI/issues)",ephemeral=True)
         return
     #See if the character is already in the table
     if token not in cIDs: 
@@ -284,7 +284,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     else: message += "**this** guild"
     if default: message += " and function as the default for this guild"
     message += "."
-    if readonly: message += " In order to give the bot write access to your character sheet, please give editor status to its email and run this command again. Bot email: `discord-test@dungeon-ai-416903.iam.gserviceaccount.com`."
+    if readonly: message += " In order to give the bot write access to your character sheet, please give editor status to its email and run this command again. Bot email: `"+botmail+"`."
     await interaction.response.send_message(message,ephemeral=True)
 
     #Reload edited databases.
