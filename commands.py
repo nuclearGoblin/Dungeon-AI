@@ -52,7 +52,7 @@ async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, p
 
     Parameters
     dice: str
-        String representing the dice rolled, in format `XdY+Z`, `XdY-Z`, or `XdY`. (Default: 1d20)
+        String representing the dice rolled, in format `XdY+Z+S(skillname)`, `XdY-Z`, or `XdY`. (Default: 1d20. Example: `1d20+S(being cool)+8`)
     goal: int
         Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
     private: bool
@@ -60,17 +60,17 @@ async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, p
     ----------
     """
     mod = 0; high = 20; numdice = 1; #Defaults -- comment out if you reinclude the extra args.
-    #Take a human-looking dice input
+    #Take a human-looking dice input 
+    rollname = "Rolling "; skill = False
     if dice != "":
-        if mod != 0 or high != 20 or numdice != 1: #If other defaults were changed, abort.
-            await interaction.response.send_message("Please do not combine the `dice` argument with other numeric arguments.",ephemeral=True)
-            return 1
-        if not re.search(r"\b\d+d\d+([+-]\d+)*$",dice):
-            await interaction.response.send_message("`dice` argument format not recognized. Please follow the format `XdY+Z`, `XdY-Z`, or `XdY`. Example `2d8+12`.",ephemeral=True)
+        if not re.search(r"\b\d+d\d+([+-]\d+)*(\+S[([].*[)\]])*([+-]\d+)*$",dice):
+            await interaction.response.send_message("`dice` argument format not recognized. Please follow the format `XdY+Z+S(skillname)`, `XdY-Z`, or `XdY`. Example `2d8+S(coolskill)+12`.",ephemeral=True)
             return 1
         #String processing
         numdice,dice = dice.split("d")
         #Get modifier
+        #So this part needs to be rewritten to be more robust to allow for multiple modifiers
+        #e.g. mod + 1
         if re.search("[+]",dice): 
             high,mod=dice.split("+")
         elif re.search("[-]",dice): 
@@ -80,7 +80,6 @@ async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, p
             high=dice
         #Convert everything to integer
         high = int(high); mod = int(mod); numdice = int(numdice)
-    rollname = "Rolling "
     #Check if we're rolling normal dice.
     #if low == 1: 
     rollname = rollname+str(numdice)+"d"+str(high)
