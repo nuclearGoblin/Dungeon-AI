@@ -12,7 +12,7 @@ import pandas as pd
 from decs import *
 from table2ascii import table2ascii as t2a
 
-#Setup
+#Setup/things we want to keep in memory
 users = pd.read_sql("SELECT "+", ".join(userCols)+" FROM users",connection,dtype=types)
 #chars = pd.read_sql("SELECT "+", ".join(charCols)+" FROM chars",connection)
 guilds = pd.read_sql("SELECT "+", ".join(guildCols)+" FROM guilds",connection,dtype=types)
@@ -34,77 +34,88 @@ async def help(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed,ephemeral=True)
 
 #Basic die rolls.
-@tree.command(
-    #name="roll", description="Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier." #moved to docstring
-)
-#@discord.app_commands.describe(
-#    dice="String representing the dice rolled, in format `XdY+Z`, `XdY-Z`, or `XdY`. (Default: 1d20)",
-#    goal="Value to meet or exceed.",
-#    private="Hide roll from other users. (Default: False)"
-    #mod="Modifier for the die roll.",
-    #high="Maximum value of the dice rolled (for XdY, this is Y).",
-    #low="Minimum value of the dice rolled (for normal dice, this is 1).",
-    #numdice="How many dice to roll (for XdY, this is X)."
-#)
-async def roll(interaction: discord.Interaction, dice: str="", goal: int=None, private: bool=False):#, mod: int=0, high: int=20, low: int=1, numdice: int=1): #don't really need all these anymore.
+@tree.command()
+async def roll(interaction: discord.Interaction, modifier: str="", goal: int=None, private: bool=False):
     """
-    Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier.
+    Rolls 1d20 with provided modifiers. Default modifier: 0.
 
     Parameters
-    dice: str
-        String representing the dice rolled, in format `XdY+Z+S(skillname)`, `XdY-Z`, or `XdY`. (Default: 1d20. Example: `1d20+S(being cool)+8`)
+    modifier: str
+        String modifier, in format `X+skill+stat+Y`. (Default: 0. Example: `coolness+charisma+8`)
     goal: int
         Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
     private: bool
         Hide your roll and result from other users. (Default: False)
     ----------
     """
-    mod = 0; high = 20; numdice = 1; #Defaults -- comment out if you reinclude the extra args.
-    #Take a human-looking dice input 
-    rollname = "Rolling "; skill = False
-    if dice != "":
-        if not re.search(r"\b\d+d\d+([+-]\d+)*(\+S[([].*[)\]])*([+-]\d+)*$",dice):
-            await interaction.response.send_message("`dice` argument format not recognized. Please follow the format `XdY+Z+S(skillname)`, `XdY-Z`, or `XdY`. Example `2d8+S(coolskill)+12`.",ephemeral=True)
+    global users,guilds
+    rollname = "Rolling `1d20"
+    mod = 0
+    if modifier != "":
+        modifier = modifier.lower() #set case to all lower to prevent case-sensitivity
+        modifier = "".join(modifier.split()) #strip all extra whitespace.
+        rollname = rollname+"+"+modifier
+        if not re.search(r"\b[+-]?((\d+)|([a-z]\w*))?([+-]((\d+)|([a-z]\w*)))*$",modifier):
+            await interaction.response.send_message(
+                "`modifier` argument format not recognized. "
+                + "Please follow the format `skillname+statname+X`,"
+                + "ex `coolness+charisma-13`.",ephemeral=True)
             return 1
-        #String processing
-        numdice,dice = dice.split("d")
         #Get modifier
         #So this part needs to be rewritten to be more robust to allow for multiple modifiers
         #e.g. mod + 1
-        if re.search("[+]",dice): 
-            high,mod=dice.split("+")
-        elif re.search("[-]",dice): 
-            high,mod=dice.split("-")
-            mod = "-"+mod
-        else: #there was no modifier.
-            high=dice
-        #Convert everything to integer
-        high = int(high); mod = int(mod); numdice = int(numdice)
-    #Check if we're rolling normal dice.
-    #if low == 1: 
-    rollname = rollname+str(numdice)+"d"+str(high)
-    #else:
-    #    rollname = rollname+str(low)+" to "+str(high)
-    #    if numdice > 1: rollname = rollname+" a total of "+str(numdice)+" times"
-    #Check the modifier
-    if mod>0:
-        rollname = rollname+" + "+str(mod)
-    elif mod<0:
-        rollname = rollname+" - "+str(abs(mod))
+        if re.search("[+]",modifier): 
+            modifier=modifier.split("+")
+            depth += 1
+        if re.search("[-]",modifier): 
+            modifier=modifier.split("-")
+            depth += 1
+        if type(modifier) != list:
+            modifier = [modifier] #if modifier is a name, we want to parse it as one.
+        token = retrieveMcToken(str(interaction.guild.id),interaction.user.id,guilds,users)
+        for entry in modifier:
+            if type(entry) == list:
+                if(len(list) != 2):
+                    await interaction.response.send_message(
+                    "Your provided modifier was parsed into the following invalid value: `"
+                    +str(modifier)+"`. The value `"+str(entry)+
+                    "` has an unacceptable length ("+str(len(entry))
+                    +"; should be a list of length 2). "+bugreporttext+".",
+                    ephemeral=True
+                )
+                return 1
+                pass #do whatever I do below but with the values
+            elif type(entry) == str:
+                if entry.isdigit():
+                    mod += int(entry)
+                else: #Should I make this a function since I'm gonna copy-paste it?
+                    modalias = check_alias(entry)
+                    if type(modalias) == str: #if the entry has an alias,
+                        mod += retrievevalue(statlayoutdict[modalias],token)
+                    else: #assume it's a skill
+                        getSkillRank(entry,token)
+                        pass #whatever the hell I do here
+            else:
+                await interaction.response.send_message(
+                    "Your provided modifier was parsed into the following invalid value: `"
+                    +str(modifier)+"`. The value `"+entry+
+                    "` has an unacceptable type ("+type(entry)
+                    +"; should be str or list). "+bugreporttext+".",
+                    ephemeral=True
+                )
+                return 1
+            
     #Generate a result
-    result = np.random.randint(1,high,numdice)
+    result = np.random.randint(1,20)
     #Generate a string representing the dice rolled
-    resultstring = ""
-    for x in result:
-        resultstring = resultstring+str(x)+", "
-    resultstring = resultstring[:-2]
-    rollname = rollname+"! Result: ["+resultstring+"]"
+    resultstring = str(result)
+    rollname = rollname+"`! Result: ["+resultstring+"]"
     if mod>0:
         rollname = rollname+" + "+str(mod)
     elif mod<0:
         rollname = rollname+" - "+str(abs(mod))
-    result = sum(result)+mod
-    if mod != 0 or numdice > 1:
+    result += mod
+    if mod != 0:
         rollname = rollname+" = **"+str(result)
     if goal != None:
         if result >= goal:
@@ -132,7 +143,9 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     allguilds: bool
         Make this character sheet accessible from all Discord servers you are in (Default: False)
     """
+    #Want to make sure we are updating the global var.
     global users,guilds#,chars
+
     #Token interpretation
     if "." in url: #This is a full URL, so we need to strip it
         token = url.split("https://") #Remove this first if it's present, since we're splitting on / this would cause issues.
@@ -178,9 +191,13 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     
     #Test read the character sheet.
     try:
-        name = retrievename(token)
+        name = retrievevalue(location=statlayoutdict["name"],token=token)
     except googleapiclient.errors.HttpError:
-        await interaction.response.send_message("Unable to reach character sheet. Please make sure that it is either public or shared with the bot, whose email is: `"+botmail+"`. If you provided a complete url, try providing only the token -- if that works, please submit a [bug report on our GitHub](https://github.com/nuclear-goblin/Dungeon-AI/issues)",ephemeral=True)
+        await interaction.response.send_message(
+            "Unable to reach character sheet. Please make sure that it is either public or shared with the bot, whose email is: `"
+            +botmail+"`. If you provided a complete url, try providing only the token."
+            +bugreporttext+" if that resolves the issue."
+        )
         return
     #See if the character is already in the table
     if token not in cIDs: 

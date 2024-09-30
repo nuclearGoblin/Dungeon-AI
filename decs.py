@@ -37,67 +37,82 @@ service = build("sheets","v4",credentials=creds)
 sheet = service.spreadsheets()
 botmail = "discord-test@dungeon-ai-416903.iam.gserviceaccount.com" #for sheet editing only.
 
+#regex stuff. taking everything as .lower().
+#This section is really just reference because I'm terrible at reading regex
+numbers = "\d+"
+words = "[a-z]\w?" #I will only interpret things as a name if they start with a letter.
+numorword = "("+numbers+")|("+words+")"
+
+#misc variables
+bugreporttext = "Please submit a [bug report on our GitHub](https://github.com/nuclear-goblin/Dungeon-AI/issues)"
+
 #Sheet layout
 statlayoutdict = {
-    'name':"'Character Sheet'!C2",
-    'race':"'Character Sheet'!C3",
-    'class':"'Character Sheet'!C4",
-    'level':"'Character Sheet'!C5",
-    'height':"'Character Sheet'!C7",
-    'weight':"'Character Sheet'!C8",
-    'gender':"'Character Sheet'!C9",
-    'image_url':"'Character Sheet'!D11",
-    'image':"'Character Sheet'!B12",
-    'bio':"'Character Sheet'!B29",
-    'str':"'Character Sheet'!F3",
-    'con':"'Character Sheet'!G3",
-    'dex':"'Character Sheet'!H3",
-    'int':"'Character Sheet'!I3",
-    'cha':"'Character Sheet'!I4",
-    'hpmax':"'Character Sheet'!H5",
-    'manamax':"'Character Sheet'!H6",
-    'evasion':"'Character Sheet'!H7",
-    'speed':"'Character Sheet'!H8",
-    'dr':"'Character Sheet'!H9",
-    'teamlogo_url':"'Character Sheet'!J5",
-    'teamlogo':"'Character Sheet'!I6",
-    'head':"'Character Sheet'!Q3",
-    'face':"'Character Sheet'!Q4",
-    'neck':"'Character Sheet'!Q5",
-    'shoulder1':"'Character Sheet'!Q6",
-    'shoulder2':"'Character Sheet'!Q7",
-    'upperarm1':"'Character Sheet'!Q8",
-    'upperarm2':"'Character Sheet'!Q9",
-    'lowerarm1':"'Character Sheet'!Q10",
-    'lowerarm2':"'Character Sheet'!Q11",
-    'hand1':"'Character Sheet'!Q12",
-    'hand2':"'Character Sheet'!Q13",
-    'ring1':"'Character Sheet'!Q14",
-    'ring2':"'Character Sheet'!Q15",
-    'ring3':"'Character Sheet'!Q16",
-    'ring4':"'Character Sheet'!Q17",
-    'ring5':"'Character Sheet'!Q18",
-    'ring6':"'Character Sheet'!Q19",
-    'ring7':"'Character Sheet'!Q20",
-    'ring8':"'Character Sheet'!Q21",
-    'ring9':"'Character Sheet'!Q22",
-    'ring10':"'Character Sheet'!Q23",
-    'torso':"'Character Sheet'!Q24",
-    'waist':"'Character Sheet'!Q25",
-    'upperleg1':"'Character Sheet'!Q26",
-    'upperleg2':"'Character Sheet'!Q27",
-    'knee1':"'Character Sheet'!Q28",
-    'knee2':"'Character Sheet'!Q29",
-    'lowerleg1':"'Character Sheet'!Q30",
-    'lowerleg2':"'Character Sheet'!Q31",
-    'foot1':"'Character Sheet'!Q32",
-    'foot2':"'Character Sheet'!Q33",
-    'skillnames':"'Character Sheet'!F13:F26,Skills and Inventory!B4:B",
-    'skilldescs':"'Character Sheet'!H13:H26,Skills and Inventory!D4:D",
-    'skillranks':"'Character Sheet'!N13:N26,Skills and Inventory!J4:J",
-    'itemnames':"'Character Sheet'!J30:J40,Skills and Inventory!N4:N",
-    'itemdescs':"'Character Sheet'!K30:K40,Skills and Inventory!O4:O",
-    'itemweigh':"'Character Sheet'!N30:N40,Skills and Inventory!T4:T"
+    'name':"Character Sheet!C2",
+    'race':"Character Sheet!C3",
+    'class':"Character Sheet!C4",
+    'level':"Character Sheet!C5",
+    'height':"Character Sheet!C7",
+    'weight':"Character Sheet!C8",
+    'gender':"Character Sheet!C9",
+    'image_url':"Character Sheet!D11",
+    'image':"Character Sheet!B12",
+    'biography':"Character Sheet!B29",
+    'strength':"Character Sheet!F3",
+    'constitution':"Character Sheet!G3",
+    'dexterity':"Character Sheet!H3",
+    'intelligence':"Character Sheet!I3",
+    'charisma':"Character Sheet!I4",
+    'hpmax':"Character Sheet!H5",
+    'manamax':"Character Sheet!H6",
+    'evasion':"Character Sheet!H7",
+    'speed':"Character Sheet!H8",
+    'dr':"Character Sheet!H9",
+    'teamlogo_url':"Character Sheet!J5",
+    'teamlogo':"Character Sheet!I6",
+    'head':"Character Sheet!Q3",
+    'face':"Character Sheet!Q4",
+    'neck':"Character Sheet!Q5",
+    'shoulder1':"Character Sheet!Q6",
+    'shoulder2':"Character Sheet!Q7",
+    'upperarm1':"Character Sheet!Q8",
+    'upperarm2':"Character Sheet!Q9",
+    'lowerarm1':"Character Sheet!Q10",
+    'lowerarm2':"Character Sheet!Q11",
+    'hand1':"Character Sheet!Q12",
+    'hand2':"Character Sheet!Q13",
+    'ring1':"Character Sheet!Q14",
+    'ring2':"Character Sheet!Q15",
+    'ring3':"Character Sheet!Q16",
+    'ring4':"Character Sheet!Q17",
+    'ring5':"Character Sheet!Q18",
+    'ring6':"Character Sheet!Q19",
+    'ring7':"Character Sheet!Q20",
+    'ring8':"Character Sheet!Q21",
+    'ring9':"Character Sheet!Q22",
+    'ring10':"Character Sheet!Q23",
+    'torso':"Character Sheet!Q24",
+    'waist':"Character Sheet!Q25",
+    'upperleg1':"Character Sheet!Q26",
+    'upperleg2':"Character Sheet!Q27",
+    'knee1':"Character Sheet!Q28",
+    'knee2':"Character Sheet!Q29",
+    'lowerleg1':"Character Sheet!Q30",
+    'lowerleg2':"Character Sheet!Q31",
+    'foot1':"Character Sheet!Q32",
+    'foot2':"Character Sheet!Q33",
+    'skillnames':"Character Sheet!F13:F26",
+    'skillnames2':"Skills and Inventory!B4:B",
+    'skilldescs':"Character Sheet!H13:H26",
+    'skilldescs2':"Skills and Inventory!D4:D",
+    'skillranks':"Character Sheet!N13:N26",
+    'skillranks2':"Skills and Inventory!J4:J",
+    'itemnames':"Character Sheet!J30:J40",
+    'itemnames2':"Skills and Inventory!N4:N",
+    'itemdescs':"Character Sheet!K30:K40",
+    'itemdescs2':"Skills and Inventory!O4:O",
+    'itemweigh':"Character Sheet!N30:N40",
+    'itemweigh2':"Skills and Inventory!T4:T"
 }
 
 #sub-functions
@@ -124,12 +139,12 @@ def strtolist(string):
     if string == ['']: string = []
     return string
 
-def retrievename(token):
+def retrievevalue(location,token):
     try:
-        name = sheet.values().get(spreadsheetId=token,range="Character Sheet!C2").execute().get("values",[])[0][0]
+        value = sheet.values().get(spreadsheetId=token,range=location).execute().get("values",[])[0][0]
     except IndexError:
-        name = "NAME_NOT_FOUND"
-    return name
+        value = "VALUE_NOT_FOUND"
+    return value
 
 def assocformat(gAssoc,allowed=["all"]):
     gAssocnew = []
@@ -140,3 +155,55 @@ def assocformat(gAssoc,allowed=["all"]):
             x = strtolist(x)[0]
             gAssocnew.append(int(x))
     return gAssocnew
+
+def check_alias(name):
+    list = []
+    for key in statlayoutdict.keys():
+        if name.lower() in key:
+            list.append(key)
+    if len(list) == 1:
+        return list[0]
+    if len(list) == 0:
+        return ("NAME_NOT_FOUND",name)
+    return (list,name)
+
+def retrieveMcToken(guildID,userID,guilds,users):
+    #First, check if current guild has an assigned main character for the user.
+    gRow = guilds.loc[guilds['userID'] == userID]
+    if gRow.empty:
+        return None
+    mcIDs = strtolist(gRow.iloc[0]["mainCharIDs"])
+    gIDs = strtolist(gRow.iloc[0]["guildIDs"])
+    try:
+        gloc = gIDs.index(guildID)
+    except ValueError: #The player doesn't have anything in this guild at all
+        return None
+    if mcIDs[gloc] != None: #There is a default character for the current guild
+        print(mcIDs[gloc],mcIDs)
+        return mcIDs[gloc]
+    #There is no default character for the current guild specifically
+    uRow = users.loc[users['userID'] == userID]
+    associated = []
+    for i,x in enumerate(uRow["guildAssociations"]):
+        if guildID in x: #If the sheet is associated with the guild,
+            associated.append(i) #Append its ID to the list
+            if len(associated > 1): return None #If there are too many, give up
+    if len(associated) == 1: #If we found a valid character,
+        return uRow["charIDs"].values[associated[0]]#Return the character ID found
+    for i,x in enumerate(uRow["guildAssociations"]): #No specific associations,
+        if "all" in x and associated == []: #So check for "all"
+            associated.append(i)
+            if len(associated > 1): return None #Again, too many; give up.
+    if len(associated) == 1:
+        return uRow["charIDs"].values[associated[0]] #Return the character ID found
+    #We never found anything. too bad.
+    return None
+        
+def getSkillRank(skillname,token):
+    #for reference
+    print(token)
+    #value    = sheet.values().get(spreadsheetId=token,range=location).execute().get("values",[])[0][0]
+    tosearch = sheet.values().get(spreadsheetId=token,range=statlayoutdict["skillnames"]).execute().get("values",[])
+    #tosearch = ["".join(entry.lower().split()) ]
+    print(tosearch)
+
