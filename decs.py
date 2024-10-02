@@ -40,7 +40,7 @@ botmail = "discord-test@dungeon-ai-416903.iam.gserviceaccount.com" #for sheet ed
 #regex stuff. taking everything as .lower().
 #This section is really just reference because I'm terrible at reading regex
 numbers = "\d+"
-words = "[a-z]\w?" #I will only interpret things as a name if they start with a letter.
+words = r"[a-z]\w?" #I will only interpret things as a name if they start with a letter.
 numorword = "("+numbers+")|("+words+")"
 
 #misc variables
@@ -125,7 +125,7 @@ def readonlytest(token):
             raise ValueError("Tried to input "+str(testinput)+"but got back "+str(gotback)+".")
         return False
     except HttpError:
-        print("read only.")
+        #print("read only.")
         return True
     
 def strtolist(string):
@@ -139,7 +139,7 @@ def strtolist(string):
     if string == ['']: string = []
     return string
 
-def retrievevalue(location,token):
+def retrievevalue(location,token): #This function is for SINGULAR values ONLY!
     try:
         value = sheet.values().get(spreadsheetId=token,range=location).execute().get("values",[])[0][0]
     except IndexError:
@@ -179,7 +179,6 @@ def retrieveMcToken(guildID,userID,guilds,users):
     except ValueError: #The player doesn't have anything in this guild at all
         return None
     if mcIDs[gloc] != None: #There is a default character for the current guild
-        print(mcIDs[gloc],mcIDs)
         return mcIDs[gloc]
     #There is no default character for the current guild specifically
     uRow = users.loc[users['userID'] == userID]
@@ -201,9 +200,25 @@ def retrieveMcToken(guildID,userID,guilds,users):
         
 def getSkillRank(skillname,token):
     #for reference
-    print(token)
     #value    = sheet.values().get(spreadsheetId=token,range=location).execute().get("values",[])[0][0]
     tosearch = sheet.values().get(spreadsheetId=token,range=statlayoutdict["skillnames"]).execute().get("values",[])
+    if [skillname] not in tosearch: #If it's not in the first array, check the second one.
+        tosearch = sheet.values().get(spreadsheetID=token,range=statlayoutdict["skillnames2"]).execute().get("values",[])
+        column = statlayoutdict["skillranks2"]
+        row = str(int(statlayoutdict["skillnames2"].split("!")[1].split(":")[0][1:])+tosearch.index([skillname]))
+    else: #If it was in there, we want to pull skill ranks from the right place.
+        column = statlayoutdict["skillranks"]
+        row = str(int(statlayoutdict["skillnames"].split("!")[1].split(":")[0][1:])+tosearch.index([skillname]))
+    if [skillname] not in tosearch: #If it's not in either, assume that the player hasn't trained the skill.
+        return 0
     #tosearch = ["".join(entry.lower().split()) ]
-    print(tosearch)
+    sheetname,column = column.split("!")
+    column = column.split(":")[0][0]
 
+    print(tosearch,column,row)
+    return int(retrievevalue(sheetname+"!"+column+row,token))
+
+def signed(intval,mode): #microfunction for handling an if/else I have to do like a hundred times
+    if mode == addition:
+        return intval
+    return 0-intval

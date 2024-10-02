@@ -64,12 +64,17 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
         #Get modifier
         #So this part needs to be rewritten to be more robust to allow for multiple modifiers
         #e.g. mod + 1
+        mode = "addition"
         if re.search("[+]",modifier): 
             modifier=modifier.split("+")
-            depth += 1
-        if re.search("[-]",modifier): 
-            modifier=modifier.split("-")
-            depth += 1
+        if(type(modifier) != list:)
+            if re.search("[-]",modifier): 
+                modifier=modifier.split("-")
+                mode = "subtraction"
+        else:
+            for i,entry in enumerate(modifier):
+                if re.search("[-]",entry):
+                    modifier[i].split("-")
         if type(modifier) != list:
             modifier = [modifier] #if modifier is a name, we want to parse it as one.
         token = retrieveMcToken(str(interaction.guild.id),interaction.user.id,guilds,users)
@@ -90,10 +95,11 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
                     mod += int(entry)
                 else: #Should I make this a function since I'm gonna copy-paste it?
                     modalias = check_alias(entry)
+                    #print("entry",entry,"had alias",modalias,"which has type",type(modalias))
                     if type(modalias) == str: #if the entry has an alias,
                         mod += retrievevalue(statlayoutdict[modalias],token)
                     else: #assume it's a skill
-                        getSkillRank(entry,token)
+                        mod += getSkillRank(entry,token)
                         pass #whatever the hell I do here
             else:
                 await interaction.response.send_message(
@@ -115,8 +121,7 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
     elif mod<0:
         rollname = rollname+" - "+str(abs(mod))
     result += mod
-    if mod != 0:
-        rollname = rollname+" = **"+str(result)
+    rollname = rollname+" = **"+str(result)
     if goal != None:
         if result >= goal:
             rollname = rollname+"** vs **"+str(goal)+" (Success!)"
@@ -150,9 +155,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     if "." in url: #This is a full URL, so we need to strip it
         token = url.split("https://") #Remove this first if it's present, since we're splitting on / this would cause issues.
         token = url.split("/") #Now split along slashes.
-        print(token)
         token = token[5] #Take the third entry
-        print(token)
     elif "/" in url: #I don't know how to interpret this. You left out .com but included slashes so I don't know where to start.
         await interaction.response.send_message("Unable to interpret provided url. Please either provide the full URL of your document or only the token.",ephemeral=True)
         return
@@ -209,11 +212,10 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         pos = cIDs.index(token)
         #See if the token is already associated with this guild and allguild and default statuses are not changing, and that the readonly status wouldn't change.
         if gAssoc[pos] != "all": 
-            print(gAssoc)
             gAssoc[pos] = [int(x) for x in gAssoc[pos]]
-        print("anything to do? \n",guildID in gAssoc[pos] and not allguilds,readonly,roArray[pos] == False)
+        #print("anything to do? \n",guildID in gAssoc[pos] and not allguilds,readonly,roArray[pos] == False)
         if ((guildID in gAssoc[pos] and not allguilds) or (gAssoc[pos] == "all" and allguilds)) and readonly == (roArray[pos] == "True"):
-            print("checking default",mcIDs[gIDs.index(guildID)],default,token in mcIDs[gIDs.index(guildID)])
+            #print("checking default",mcIDs[gIDs.index(guildID)],default,token in mcIDs[gIDs.index(guildID)])
             if (token in mcIDs[gIDs.index(guildID)]) == default:
                 await interaction.response.send_message("This character is already linked as described. Nothing to do!",ephemeral=True)
                 return
@@ -242,12 +244,9 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
     #Set up guild association for character.
-    print("allguilds?",allguilds)
     #If it's set to all, overwrite the array with "all"
-    #print("gAssoc:",gAssoc,"pos:",pos,"len:",len(gAssoc))
     if allguilds: 
         assocs = strtolist(uRow.iloc[0]["guildAssociations"])
-        #print("assocs:",assocs)
         if len(assocs) <= pos:
             assocs.append("all")
         else:
@@ -268,7 +267,6 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             x = gAssoc[pos]
             x.append(guildID)
             uRow.at[0,"guildAssociations"] = x
-    print("guildassoc:",gAssoc)
     #Reformat data as necessary
     uRow.at[0,"guildAssociations"] = str(uRow.iloc[0]["guildAssociations"])
     uRow["charIDs"] = uRow["charIDs"].astype("str")
@@ -276,19 +274,13 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     uRow["readonly"] = uRow["readonly"].astype("str")
     gRow["guildIDs"] = gRow["guildIDs"].astype("str")
     gRow["mainCharIDs"] = gRow["mainCharIDs"].astype("str")
-    print(gRow.dtypes)
     #Save the data!
-    print("Saving data.") #debug
     if concat: #If the stuff wasn't found before, then append to existing.
-        print("Concatenating.")
         uRow.to_sql(name='users',con=connection,if_exists="append")
-        print("1/2")
         gRow.to_sql(name='guilds',con=connection,if_exists="append")
-        print("Concatenated.")
     else: #Otherwise, just update the table by replacement.
         guilds.loc[guilds['userID'] == interaction.user.id] = gRow
         users.loc[users['userID'] == interaction.user.id] = uRow
-        print("users:",users)
         users.to_sql(name='users',con=connection,if_exists="replace")
         guilds.to_sql(name='guilds',con=connection,if_exists="replace")
     #Construct a nice pretty message.
@@ -336,9 +328,7 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
         return
     else:
         gRow = guilds.loc[guilds['userID'] == interaction.user.id]
-        print("gRow:",gRow)
         uRow = users.loc[users['userID'] == interaction.user.id]
-        print("uRow:",uRow)
     if any("all" in x for x in strtolist(uRow["guildAssociations"])):
         allspresent = True
     else: allspresent = False
@@ -346,8 +336,6 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
         if guildID not in strtolist(gRow.iloc[0]["guildIDs"]) and not allspresent: #If you asked for everything in this guild but there's nothing,
             await interaction.response.send_message("You do not have any characters linked in this guild. Run with char set to `all` to view all linked characters.",ephemeral=private)
             return
-        #print(uRow["charIDs"].values,strtolist(uRow["charIDs"].values)[0],strtolist(strtolist(uRow["charIDs"].values)[0]),strtolist(strtolist(uRow["charIDs"].values)[0])[0])
-        #for x in strtolist(uRow["charIDs"].values)[0]: print(x)
         charlist = strtolist(strtolist(uRow["charIDs"].values)[0])
         #Then prune the list.
         for character in charlist:
@@ -448,7 +436,6 @@ async def unlink(interaction: discord.Interaction, char: str):
                 uRow.at[0,"guildAssociations"] = gAssoc #and rewrite into uRow
                 pass
         #Now delete this guild from gRow
-        #print(gIDs,guildID,guildID in gIDs,type(gIDs[0]),type(guildID)) #debug
         try:
             gloc = gIDs.index(guildID)
         except ValueError: #Assume that it's a type mismatch
@@ -479,10 +466,8 @@ async def unlink(interaction: discord.Interaction, char: str):
         try:
             pos = cIDs.index(x)
             #if char != "guild":    mcIDs.pop(pos) #why did I write this? that's not how any of this works.
-            print(uRow)
             cIDs.pop(pos); gAssoc.pop(pos); roArray.pop(pos)
-            print("gAssoc:",gAssoc)
-            #print(uRow) #Not updated yet
+
         except ValueError: #It's not there
             unfound.append(x)
             charlist.remove(x)
@@ -490,7 +475,7 @@ async def unlink(interaction: discord.Interaction, char: str):
     #Remove empty guilds
     emptyguilds = 0
     for guildID in gIDs:
-        print("Checking for removal of guild",guildID)
+        #print("Checking for removal of guild",guildID)
         #if guild is not associated with anything,
         timetokill = True
         if gAssoc == []: #if all guilds were removed
@@ -499,9 +484,9 @@ async def unlink(interaction: discord.Interaction, char: str):
             for lst in gAssoc:
                 if str(guildID) not in lst and guildID not in lst:
                     pass
-                    print("guildID was unassociated.")
+                    #print("guildID was unassociated.")
                 else: #The only case in which we don't want to remove the guild.
-                    print("Should not be removing guild.")
+                    #print("Should not be removing guild.")
                     timetokill = False
                     break
         #we didn't hit our continue block, so time to delete the guild.
@@ -521,7 +506,6 @@ async def unlink(interaction: discord.Interaction, char: str):
             gRow.at[0,"mcIDs"] = str(mcIDs)
             emptyguilds += 1
     #Finally, check if user is empty.
-    print("mcIDs:",mcIDs,"cIDs:",cIDs)
     if mcIDs == [] and cIDs == []:
         userdel = True
     if userdel: #Just delete the rows directly to be sure.
@@ -534,17 +518,10 @@ async def unlink(interaction: discord.Interaction, char: str):
         uRow.at[0,"guildAssociations"] = str(gAssoc)
         uRow.at[0,"readonly"] = str(roArray)
 
-        print("gRow:")
-        print(gRow)
-        print("uRow:")
-        print(uRow)
-
         #Rewrite gRow,uRow to the users,guilds 
         guilds.loc[guilds['userID'] == interaction.user.id] = gRow
         users.loc[users['userID'] == interaction.user.id] = uRow
 
-        print("users:",users)
-        print("guilds:",guilds)
         #And then those to the database
         users.to_sql(name='users',con=connection,if_exists="replace")
         guilds.to_sql(name='guilds',con=connection,if_exists="replace")
