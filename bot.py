@@ -1,9 +1,7 @@
 #Imports
-import os, discord, json
+import os, discord
 import pandas as pd
 from decs import *
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 
 #Secrets
 TOKEN = os.getenv('DISCORD_TOKEN')

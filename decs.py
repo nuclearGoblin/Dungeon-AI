@@ -62,7 +62,7 @@ statlayoutdict = {
     'constitution':"Character Sheet!G3",
     'dexterity':"Character Sheet!H3",
     'intelligence':"Character Sheet!I3",
-    'charisma':"Character Sheet!I4",
+    'charisma':"Character Sheet!J3",
     'hpmax':"Character Sheet!H5",
     'manamax':"Character Sheet!H6",
     'evasion':"Character Sheet!H7",
@@ -140,6 +140,7 @@ def strtolist(string):
     return string
 
 def retrievevalue(location,token): #This function is for SINGULAR values ONLY!
+    print("location",location)
     try:
         value = sheet.values().get(spreadsheetId=token,range=location).execute().get("values",[])[0][0]
     except IndexError:
@@ -203,7 +204,7 @@ def getSkillRank(skillname,token):
     #value    = sheet.values().get(spreadsheetId=token,range=location).execute().get("values",[])[0][0]
     tosearch = sheet.values().get(spreadsheetId=token,range=statlayoutdict["skillnames"]).execute().get("values",[])
     if [skillname] not in tosearch: #If it's not in the first array, check the second one.
-        tosearch = sheet.values().get(spreadsheetID=token,range=statlayoutdict["skillnames2"]).execute().get("values",[])
+        tosearch = sheet.values().get(spreadsheetId=token,range=statlayoutdict["skillnames2"]).execute().get("values",[])
         column = statlayoutdict["skillranks2"]
         row = str(int(statlayoutdict["skillnames2"].split("!")[1].split(":")[0][1:])+tosearch.index([skillname]))
     else: #If it was in there, we want to pull skill ranks from the right place.
@@ -215,10 +216,9 @@ def getSkillRank(skillname,token):
     sheetname,column = column.split("!")
     column = column.split(":")[0][0]
 
-    print(tosearch,column,row)
     return int(retrievevalue(sheetname+"!"+column+row,token))
 
 def signed(intval,mode): #microfunction for handling an if/else I have to do like a hundred times
-    if mode == addition:
+    if mode == "+":
         return intval
-    return 0-intval
+    return 0-intval #Currently only modes are +/- so this is fine.
