@@ -318,41 +318,41 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
         allspresent = True
     else: allspresent = False
     if char == "guild":
-        if guildID not in strtolist(gRow.iloc[0]["guildIDs"]) and not allspresent: #If you asked for everything in this guild but there's nothing,
+        if guildID not in d.strtolist(gRow.iloc[0]["guildIDs"]) and not allspresent: #If you asked for everything in this guild but there's nothing,
             await interaction.response.send_message("You do not have any characters linked in this guild. Run with char set to `all` to view all linked characters.",ephemeral=private)
             return
-        charlist = strtolist(strtolist(uRow["charIDs"].values)[0])
+        charlist = d.strtolist(d.strtolist(uRow["charIDs"].values)[0])
         #Then prune the list.
         for character in charlist:
-            pos = strtolist(uRow.iloc[0]["charIDs"]).index(character)
-            gAssoc = strtolist(uRow.iloc[0]["guildAssociations"])[pos]
+            pos = d.strtolist(uRow.iloc[0]["charIDs"]).index(character)
+            gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])[pos]
             if type(gAssoc) == str: gAssoc = [gAssoc]
-            gAssoc = assocformat(gAssoc)
+            gAssoc = d.assocformat(gAssoc)
             if int(guildID) not in gAssoc and "all" not in gAssoc: charlist.remove(character)
-    elif char == "all": charlist = strtolist(uRow["charIDs"].values)
+    elif char == "all": charlist = d.strtolist(uRow["charIDs"].values)
     else: charlist = char.replace(" ","").split(",")
     body = []
     for character in charlist:
         try: #Check that the character sheet is readable
-            name = str(sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])[0][0])
+            name = str(d.sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])[0][0])
         except IndexError:
             name = "NOT_FOUND"
-        except HttpError:
+        except googleapiclient.errors.HttpError:
             name = "(Unreachable)"
         row = [name,character,None,None,None]
         try: #Check that the character sheet is associated with the user.
-            pos = strtolist(uRow.iloc[0]["charIDs"]).index(character)
+            pos = d.strtolist(uRow.iloc[0]["charIDs"]).index(character)
         except ValueError: #If it's not,
             continue #Skip this iteration.
-        mcIDs = strtolist(gRow.iloc[0]["mainCharIDs"])
-        gIDs = strtolist(gRow.iloc[0]["guildIDs"])
+        mcIDs = d.strtolist(gRow.iloc[0]["mainCharIDs"])
+        gIDs = d.strtolist(gRow.iloc[0]["guildIDs"])
         #default status
         try: row[2] = str(mcIDs[gIDs.index(guildID)] == character)
         except IndexError: #If it's not associated with this guild
             row[2] = "N/A"
-        gAssoc = strtolist(uRow.iloc[0]["guildAssociations"])[pos]
+        gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])[pos]
         if type(gAssoc) == str: gAssoc = [gAssoc]
-        gAssoc = assocformat(gAssoc)
+        gAssoc = d.assocformat(gAssoc)
         if len(gAssoc) > 1 and int(guildID) in gAssoc: #If there are multiple,
             row[3] = "Multiple, including this one"
         elif int(guildID) in gAssoc: #If there's just one, and it's this one,
@@ -361,7 +361,7 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
         else: #Assume that it's a list that doesn't contain the current guild and print it.
             row[3] = str(gAssoc)
         if name != "(Unreachable)":
-            if readonlytest(character): row[4] = "Read Only"
+            if d.readonlytest(character): row[4] = "Read Only"
             else: row[4] = "Writable"
         else:
             row[4] = "No Access"
