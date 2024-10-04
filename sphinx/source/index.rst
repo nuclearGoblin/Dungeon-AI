@@ -79,7 +79,8 @@ Below are DungeonAI's commands. The bot relies on slash commands; this means, fo
 
    **/roll** - Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier.
 
-   :param parameter: String representing the dice modifier to be rolled, in format `skillname+statname+X` or `-X`. (Default: 0)
+   :param parameter: String representing the dice modifier to be rolled, in format `skillname+statname+X` or `-X`. (Default: 0).
+    Calls your default character if non-numeric values are provided.
    :type dice: str
    :param goal: Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
    :type goal: int

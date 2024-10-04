@@ -42,7 +42,8 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
 
     Parameters
     modifier: str
-        String modifier, in format `X+skill+stat+Y`. (Default: 0. Example: `coolness+charisma+8`)
+        String representing modifier, in format `X+skill+stat+Y`. (Default: 0. Example: `coolness+charisma+8`)
+        Calls your default character if non-numeric values are provided.
     goal: int
         Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
     private: bool
