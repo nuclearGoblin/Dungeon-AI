@@ -75,9 +75,9 @@ Below are DungeonAI's commands. The bot relies on slash commands; this means, fo
    roll
    ****
 
-.. py:function:: roll(dice='1d20',goal=None,private=False)
+.. py:function:: roll(modifier='',goal=None,private=False)
 
-   **/roll** - Default: rolls 1d20. Rolls a number of dice with minimum, maximum, and modifier.
+   **/roll** - Default: rolls 1d20 with no modifier. Rolls 1d20 with the provided modifier.
 
    :param parameter: String representing the dice modifier to be rolled, in format `skillname+statname+X` or `-X`. (Default: 0).
     Calls your default character if non-numeric values are provided.
