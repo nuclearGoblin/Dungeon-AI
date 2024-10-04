@@ -80,9 +80,13 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
                 modalias = d.check_alias(entry)
                 #print("entry",entry,"had alias",modalias,"which has type",type(modalias))
                 if type(modalias) is str: #if the entry has an alias,
-                    mod += d.signed(int(d.retrievevalue(d.statlayoutdict[modalias],token)),mode[i])
+                    toadd = d.retrievevalue(d.statlayoutdict[modalias],token)
                 else: #assume it's a skill
-                    mod += d.signed(d.getSkillRank(entry,token),mode[i])
+                    toadd = d.getSkillRank(entry,token)
+                if toadd == "HTTP_ERROR":
+                    mod = "HTTP_ERROR"
+                    break #Stop calculating it and tell them to do it themselves.
+                else: mod += d.signed(int(toadd),mode[i])
             
     #Generate a result
     result = np.random.randint(1,20)
@@ -96,11 +100,14 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
     result += mod
     rollname = rollname+" = **"+str(result)
     if goal is not None:
-        if result >= goal:
-            rollname = rollname+"** vs **"+str(goal)+" (Success!)"
+        rollname += "** vs **"+str(goal)    
+        if mod == "HTTP_ERROR":
+            rollname += ". There was an error from google sheets when retrieving modifiers. "
+            rollname += "Please manually calculate your roll. "
         else:
-            rollname = rollname+"** vs **"+str(goal)+" (Failure...)"
-    rollname = rollname+"**."
+            if result >= goal: rollname += " (Success!)"
+            else: rollname += " (Failure...)"
+    rollname = rollname+"**." #end bold
     await interaction.response.send_message(rollname,ephemeral=private)
 
 #Character sheet linking
