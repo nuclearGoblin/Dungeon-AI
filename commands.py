@@ -28,7 +28,7 @@ async def help(interaction: discord.Interaction):
     """
     embed = discord.Embed(title="Commands")
     embed.add_field(name="help",value="Prints this help menu.",inline=False)
-    embed.add_field(name="roll [dice] [goal] [private]",value="Rolls a die.",inline=False)
+    embed.add_field(name="roll [dice] [goal] [autoexp] [private]",value="Rolls a die.",inline=False)
     embed.add_field(name="link <url> [default] [allguilds]",value="Link a character sheet to your user.",inline=False)
     embed.add_field(name="view [char]",value="View the character sheets that you've linked.",inline=False)
     embed.add_field(name="unlink <char>",value="Unlink characters from yourself.",inline=False)
@@ -36,7 +36,7 @@ async def help(interaction: discord.Interaction):
 
 #Basic die rolls.
 @d.tree.command()
-async def roll(interaction: discord.Interaction, modifier: str="", goal: int=None, private: bool=False):
+async def roll(interaction: discord.Interaction, modifier: str="", goal: int=None, autoexp: bool=False, private: bool=False):
     """
     Rolls 1d20 with provided modifiers. Default modifier: 0.
 
@@ -46,13 +46,16 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
         Calls your default character if non-numeric values are provided.
     goal: int
         Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
+    autoexp: bool
+        Automatically grant exp for the roll, if applicable.
     private: bool
         Hide your roll and result from other users. (Default: False)
     ----------
     """
+    view = None #unless defined
     global users,guilds
     rollname = "Rolling `1d20"
-    mod = 0
+    mod = 0 #"mod" is the numeric modifier. "modifier" is the string we are parsing.
     if modifier != "":
         modifier = modifier.lower() #set case to all lower to prevent case-sensitivity
         modifier = "".join(modifier.split()) #strip all extra whitespace.
@@ -83,11 +86,14 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
                 if type(modalias) is str: #if the entry has an alias,
                     toadd = d.retrievevalue(d.statlayoutdict[modalias],token)
                 else: #assume it's a skill
-                    toadd = d.getSkillRank(entry,token)
+                    toadd,skillrow = d.getSkillInfo(entry,token)
+                    rank = toadd
+                    skillname = entry
                 if toadd == "HTTP_ERROR":
                     mod = "HTTP_ERROR"
                     break #Stop calculating it and tell them to do it themselves.
-                else: mod += d.signed(int(toadd),mode[i])
+                else: 
+                    mod += d.signed(int(toadd),mode[i])
             
     #Generate a result
     result = np.random.randint(1,20)
@@ -103,13 +109,30 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
     if goal is not None:
         rollname += "** vs **"+str(goal)    
         if mod == "HTTP_ERROR":
-            rollname += ". There was an error from google sheets when retrieving modifiers. "
+            rollname += ". There was an error connecting to Google Sheets when retrieving modifiers. "
             rollname += "Please manually calculate your roll. "
         else:
             if result >= goal: rollname += " (Success!)"
             else: rollname += " (Failure...)"
     rollname = rollname+"**." #end bold
-    await interaction.response.send_message(rollname,ephemeral=private)
+    try: #If a skill was rolled, we will look at experience.
+        if not d.readonlytest(token):
+            if autoexp: #automatically add to sheet
+                expmsg = d.giveExp(skillrow,rank,token,skillname)
+                rollname += " "+expmsg 
+            else:
+                view = d.expButton() #pass values to button class
+                view.token = token
+                view.skillrow = skillrow
+                view.skillrank = rank
+                view.skillname = skillname
+                #view.message = rollname+" "
+                view.parentInter = interaction
+        else:
+            rollname += " Don't forget to update your skill experience."
+    except ValueError: #skillrow is undefined, so we weren't rolling a skill
+        pass
+    await interaction.response.send_message(rollname,ephemeral=private,view=view)
 
 #Character sheet linking
 @d.tree.command(

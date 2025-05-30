@@ -101,19 +101,23 @@ statlayoutdict = {
     'lowerleg2':"Character Sheet!Q31",
     'foot1':"Character Sheet!Q32",
     'foot2':"Character Sheet!Q33",
-    'skillnames':"Character Sheet!F13:F26",
-    'skillnames2':"Skills and Inventory!B4:B",
-    'skilldescs':"Character Sheet!H13:H26",
-    'skilldescs2':"Skills and Inventory!D4:D",
-    'skillranks':"Character Sheet!N13:N26",
-    'skillranks2':"Skills and Inventory!J4:J",
-    'itemnames':"Character Sheet!J30:J40",
-    'itemnames2':"Skills and Inventory!N4:N",
-    'itemdescs':"Character Sheet!K30:K40",
-    'itemdescs2':"Skills and Inventory!O4:O",
-    'itemweigh':"Character Sheet!N30:N40",
-    'itemweigh2':"Skills and Inventory!T4:T"
+    'skillnames':"Skills and Inventory!B4:B",
+    'skilldescs':"Skills and Inventory!D4:D",
+    'skillranks':"Skills and Inventory!J4:J",
+    'skilltrack':"Skills and Inventory!K4:K", #!K4:K #this one is not searched.
+    'skillexp':"Skills and Inventory!L", #!L4:L #this one is not searched.
+    'itemnames':"Skills and Inventory!P4:P",
+    'itemdescs':"Skills and Inventory!Q4:Q",
+    'itemweigh':"Skills and Inventory!V4:V"
 }
+
+skillTrackTable = {
+        'S': [0,1,2, 3 ,4, 5, 6, 7, 8,  9,  10, 11, 12, 13,14, 15, 16, 17, 18, 19, 20],
+        'A': [0,1,5, 9 ,13,17,21,25,29, 33, 37, 41, 45, 49,53, 57, 61, 65, 69, 73, 77],
+        'B': [0,1,9, 17,25,33,41,49,57, 65, 73, 81, 89, 97,105,113,121,129,137,145,153],
+        'C': [0,1,13,25,37,49,61,73,85, 97, 109,121,133,145,157,169,181,193,205,217,229],
+        'D': [0,1,16,31,46,61,76,91,106,121,136,151,166,181,196,211,226,241,256,271,286]
+        }
 
 #sub-functions
 def readonlytest(token):
@@ -140,10 +144,10 @@ def strtolist(string):
     return string
 
 def retrievevalue(location,token): #This function is for SINGULAR values ONLY!
-    print("location",location)
     try:
         value = sheet.values().get(spreadsheetId=token,range=location).execute().get("values",[])[0][0]
     except IndexError:
+        print("Value at "+location+" not found.")
         value = "VALUE_NOT_FOUND"
     return value
 
@@ -187,38 +191,88 @@ def retrieveMcToken(guildID,userID,guilds,users):
     for i,x in enumerate(uRow["guildAssociations"]):
         if guildID in x: #If the sheet is associated with the guild,
             associated.append(i) #Append its ID to the list
-            if len(associated > 1): return None #If there are too many, give up
+            if len(associated) > 1: return None #If there are too many, give up
     if len(associated) == 1: #If we found a valid character,
         return uRow["charIDs"].values[associated[0]]#Return the character ID found
     for i,x in enumerate(uRow["guildAssociations"]): #No specific associations,
         if "all" in x and associated == []: #So check for "all"
             associated.append(i)
-            if len(associated > 1): return None #Again, too many; give up.
+            if len(associated) > 1: return None #Again, too many; give up.
     if len(associated) == 1:
         return uRow["charIDs"].values[associated[0]] #Return the character ID found
     #We never found anything. too bad.
     return None
         
-def getSkillRank(skillname,token):
+def getSkillInfo(skillname,token):
     #for reference
     #value    = sheet.values().get(spreadsheetId=token,range=location).execute().get("values",[])[0][0]
     tosearch = sheet.values().get(spreadsheetId=token,range=statlayoutdict["skillnames"]).execute().get("values",[])
-    if [skillname] not in tosearch: #If it's not in the first array, check the second one.
-        tosearch = sheet.values().get(spreadsheetId=token,range=statlayoutdict["skillnames2"]).execute().get("values",[])
-        column = statlayoutdict["skillranks2"]
-        row = str(int(statlayoutdict["skillnames2"].split("!")[1].split(":")[0][1:])+tosearch.index([skillname]))
-    else: #If it was in there, we want to pull skill ranks from the right place.
-        column = statlayoutdict["skillranks"]
-        row = str(int(statlayoutdict["skillnames"].split("!")[1].split(":")[0][1:])+tosearch.index([skillname]))
+    column = statlayoutdict["skillranks"]
+    row = str(int(statlayoutdict["skillnames"].split("!")[1].split(":")[0][1:])+tosearch.index([skillname]))
     if [skillname] not in tosearch: #If it's not in either, assume that the player hasn't trained the skill.
         return 0
     #tosearch = ["".join(entry.lower().split()) ]
     sheetname,column = column.split("!")
     column = column.split(":")[0][0]
 
-    return int(retrievevalue(sheetname+"!"+column+row,token))
+    return int(retrievevalue(sheetname+"!"+column+row,token)),row
+
+def giveExp(skill: int,rank: int,token,skillname: str):
+    rankup = False #track whether a skill levels up
+    message = "You gained one experience point in "+skillname
+
+    #Get the current value
+    loc_exp = statlayoutdict['skillexp']+str(skill)
+    currentexp = int(retrievevalue(loc_exp,token))+1
+
+    #Check for rank-up
+    maxExp = skillTrackTable[retrievevalue(statlayoutdict['skilltrack']+str(skill),token)][rank]
+    if currentexp >= maxExp:
+        #Rankups don't happen until combat is over, so the player will have to handle that themselves.
+        rankup = True #flag to notify the player.
+        message += ", allowing you to progress to the next rank!"
+    else:
+        message += "."
+    
+    #Update the exp value
+    sheet.values().update(spreadsheetId=token,range=loc_exp,
+                                body={'values':[[str(currentexp)]],'range':loc_exp, 'majorDimension':'ROWS'},
+            valueInputOption = 'USER_ENTERED').execute()
+    return message
 
 def signed(intval,mode): #microfunction for handling an if/else I have to do like a hundred times
     if mode == "+":
         return intval
     return 0-intval #Currently only modes are +/- so this is fine.
+
+# Classes ###########
+
+class expButton(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+
+        self.token = None
+        self.skillrow = None
+        self.skillrank = None
+        self.skillname = None
+        self.private = True
+        self.message = ""
+        self.parentInter = None
+
+    @discord.ui.button(label="Gain Skill EXP",style=discord.ButtonStyle.success)
+    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.message += giveExp(self.skillrow,self.skillrank,self.token,self.skillname)
+        print(type(self.message))
+        print(len(self.message))
+        print(self.message)
+        button.disabled = True
+        button.label = "EXP Gained"
+        button.emoji = "✔️"
+        # button.disabled = True
+        #button.label = "EXP Gained"
+        #button.emoji = ":heavy_check_mark:"
+        await self.parentInter.edit_original_response(content=self.message,view=self)#,ephemeral=self.private)
+        #self.stop()
+        await interaction.response.defer()
+
+
