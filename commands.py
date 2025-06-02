@@ -52,7 +52,7 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
         Hide your roll and result from other users. (Default: False)
     ----------
     """
-    view = None #unless defined
+    button_view = None #unless defined
     global users,guilds
     rollname = "Rolling `1d20"
     mod = 0 #"mod" is the numeric modifier. "modifier" is the string we are parsing.
@@ -85,7 +85,15 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
                 #print("entry",entry,"had alias",modalias,"which has type",type(modalias))
                 if type(modalias) is str: #if the entry has an alias,
                     toadd = d.retrievevalue(d.statlayoutdict[modalias],token)
+                elif token is None: #assume we're looking for a skill, but we don't have a character
+                    await interaction.response.send_message(
+                            "You appear to have selected a skill name, "
+                            + "but you have no default character sheet for me to check. "
+                            + "Please either set a default character sheet using /link "
+                            + "or double-check your roll syntax.",ephemeral=True)
+
                 else: #assume it's a skill
+                    print(token)
                     toadd,skillrow = d.getSkillInfo(entry,token)
                     rank = toadd
                     skillname = entry
@@ -116,23 +124,24 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
             else: rollname += " (Failure...)"
     rollname = rollname+"**." #end bold
     try: #If a skill was rolled, we will look at experience.
+        skillname
         if not d.readonlytest(token):
             if autoexp: #automatically add to sheet
                 expmsg = d.giveExp(skillrow,rank,token,skillname)
                 rollname += " "+expmsg 
             else:
-                view = d.expButton() #pass values to button class
-                view.token = token
-                view.skillrow = skillrow
-                view.skillrank = rank
-                view.skillname = skillname
+                button_view = d.expButton() #pass values to button class
+                button_view.token = token
+                button_view.skillrow = skillrow
+                button_view.skillrank = rank
+                button_view.skillname = skillname
                 #view.message = rollname+" "
-                view.parentInter = interaction
+                button_view.parentInter = interaction
         else:
             rollname += " Don't forget to update your skill experience."
-    except ValueError: #skillrow is undefined, so we weren't rolling a skill
+    except UnboundLocalError: #skillname is undefined, so we weren't rolling a skill
         pass
-    await interaction.response.send_message(rollname,ephemeral=private,view=view)
+    await interaction.response.send_message(rollname,ephemeral=private,view=button_view)
 
 #Character sheet linking
 @d.tree.command(
@@ -163,7 +172,8 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     elif "/" in url: #I don't know how to interpret this. You left out .com but included slashes so I don't know where to start.
         await interaction.response.send_message("Unable to interpret provided url. Please either provide the full URL of your document or only the token.",ephemeral=True)
         return
-    else: token = url
+    else: 
+        token = url
     #Test write to the character sheet.
     readonly = d.readonlytest(token)
     #Now that we have a token, see if the user is in the table.
@@ -215,9 +225,9 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     else:
         pos = cIDs.index(token)
         #See if the token is already associated with this guild and allguild and default statuses are not changing, and that the readonly status wouldn't change.
-        if gAssoc[pos] != "all": 
+        if gAssoc[pos] not in ["all",["all"]]:
+            print(gAssoc[pos])
             gAssoc[pos] = [int(x) for x in gAssoc[pos]]
-        #print("anything to do? \n",guildID in gAssoc[pos] and not allguilds,readonly,roArray[pos] == False)
         if ((guildID in gAssoc[pos] and not allguilds) or (gAssoc[pos] == "all" and allguilds)) and readonly == (roArray[pos] == "True"):
             #print("checking default",mcIDs[gIDs.index(guildID)],default,token in mcIDs[gIDs.index(guildID)])
             if (token in mcIDs[gIDs.index(guildID)]) == default:
@@ -230,8 +240,10 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         roArray.append(readonly)
     uRow.at[0,"readonly"] = roArray
     #See if we need to add the current guild to the list of guilds.
-    if guildID not in gIDs: 
+    if guildID not in gIDs:
+        print(type(guildID))
         gIDs.append(guildID)
+        print(gIDs)
     #If this character is to be the default for this guild, we should associate them.
     if default: 
         try: #Try reassigning if exists
@@ -340,7 +352,8 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
         uRow = users.loc[users['userID'] == interaction.user.id]
     if any("all" in x for x in d.strtolist(uRow["guildAssociations"])):
         allspresent = True
-    else: allspresent = False
+    else: 
+        allspresent = False
     if char == "guild":
         if guildID not in d.strtolist(gRow.iloc[0]["guildIDs"]) and not allspresent: #If you asked for everything in this guild but there's nothing,
             await interaction.response.send_message("You do not have any characters linked in this guild. Run with char set to `all` to view all linked characters.",ephemeral=private)
@@ -352,17 +365,30 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
             gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])[pos]
             if type(gAssoc) == str: gAssoc = [gAssoc]
             gAssoc = d.assocformat(gAssoc)
-            if int(guildID) not in gAssoc and "all" not in gAssoc: charlist.remove(character)
-    elif char == "all": charlist = d.strtolist(uRow["charIDs"].values)
-    else: charlist = char.replace(" ","").split(",")
+            if int(guildID) not in gAssoc and "all" not in gAssoc: 
+                charlist.remove(character)
+    elif (char == "all") or allspresent: 
+        charlist = d.strtolist(uRow["charIDs"].values)
+        charlist_temp = []
+        for char in charlist:
+            for subchar in d.strtolist(char):
+                charlist_temp.append(subchar)
+        #charlist = list(set(charlist)) #kill duplicates
+        charlist = charlist_temp
+        print(charlist,type(charlist))
+        #print(charlist) #looks good here
+    else: 
+        charlist = char.replace(" ","").split(",")
     body = []
     for character in charlist:
+        print(character,type(character),character[0])
         try: #Check that the character sheet is readable
             name = str(d.sheet.values().get(spreadsheetId=character,range="Character Sheet!C2").execute().get("values",[])[0][0])
         except IndexError:
             name = "NOT_FOUND"
         except googleapiclient.errors.HttpError:
             name = "(Unreachable)"
+        print(character, name) #'all' leads to unreachable
         row = [name,character,None,None,None]
         try: #Check that the character sheet is associated with the user.
             pos = d.strtolist(uRow.iloc[0]["charIDs"]).index(character)
@@ -371,11 +397,13 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
         mcIDs = d.strtolist(gRow.iloc[0]["mainCharIDs"])
         gIDs = d.strtolist(gRow.iloc[0]["guildIDs"])
         #default status
-        try: row[2] = str(mcIDs[gIDs.index(guildID)] == character)
-        except IndexError: #If it's not associated with this guild
+        try:
+            row[2] = str(mcIDs[gIDs.index(guildID)] == character)
+        except ValueError: #If it's not associated with this guild
             row[2] = "N/A"
         gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])[pos]
-        if type(gAssoc) == str: gAssoc = [gAssoc]
+        if type(gAssoc) == str: 
+            gAssoc = [gAssoc]
         gAssoc = d.assocformat(gAssoc)
         if len(gAssoc) > 1 and int(guildID) in gAssoc: #If there are multiple,
             row[3] = "Multiple, including this one"
@@ -394,7 +422,6 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
     #await interaction.response.send_message(message,ephemeral=private)
     await interaction.response.send_message(f"**Characters found:**\n```\n"+output+"\n```",ephemeral=private)
 
-#async def unlink()
 #Let someone unlink data.
 @d.tree.command(
     #name="unlink", description="Unlink one or more characters from yourself."
