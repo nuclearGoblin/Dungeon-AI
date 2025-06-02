@@ -32,13 +32,14 @@ We encourage you to clone this git repository (`git clone git@github.com:nuclear
 as it will allow you to receive updates via the `main` branch using `git pull`.
 
 This bot has two API components and therefore requires two authorizations: one for Discord and one for Google.
-Google API key setup is optional, but skipping it will result in only being able to access public sheets and having no write priveleges.
+Google API key setup is "optional" (with some tweaking to ignore associated checks),
+but skipping it will result in only being able to access public sheets and having no write priveleges.
 Creating a Discord application through Discord's developer portal is required for self-hosting.
 
 The bot looks for several environment variables, which can be stored in a file named `.env`. 
 An example file [`sample.env`](sample.env) is provided to explain all environment variables that the bot checks for.
 
-It also requires you to create service.json. TODO: Describe format
+It also requires you to create service.json, downloaded from Google when you create your API tokens.
 
 You will need to install Python as well as the packages specified in [`requirements.txt`](requirements.txt): 
 `pip install -r requirements.txt`.  
