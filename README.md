@@ -38,6 +38,8 @@ Creating a Discord application through Discord's developer portal is required fo
 The bot looks for several environment variables, which can be stored in a file named `.env`. 
 An example file [`sample.env`](sample.env) is provided to explain all environment variables that the bot checks for.
 
+It also requires you to create service.json. TODO: Describe format
+
 You will need to install Python as well as the packages specified in [`requirements.txt`](requirements.txt): 
 `pip install -r requirements.txt`.  
 Once the environment has correctly been set up, the bot can be run using `python bot.py`.
