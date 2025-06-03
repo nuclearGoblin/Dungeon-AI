@@ -89,11 +89,10 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
                     await interaction.response.send_message(
                             "You appear to have selected a skill name, "
                             + "but you have no default character sheet for me to check. "
-                            + "Please either set a default character sheet using /link "
+                            + "Please either set a default character sheet using `/link` "
                             + "or double-check your roll syntax.",ephemeral=True)
 
                 else: #assume it's a skill
-                    print(token)
                     toadd,skillrow = d.getSkillInfo(entry,token)
                     rank = toadd
                     skillname = entry
@@ -120,8 +119,10 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
             rollname += ". There was an error connecting to Google Sheets when retrieving modifiers. "
             rollname += "Please manually calculate your roll. "
         else:
-            if result >= goal: rollname += " (Success!)"
-            else: rollname += " (Failure...)"
+            if result >= goal: 
+                rollname += " (Success!)"
+            else: 
+                rollname += " (Failure...)"
     rollname = rollname+"**." #end bold
     try: #If a skill was rolled, we will look at experience.
         skillname
@@ -135,7 +136,7 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
                 button_view.skillrow = skillrow
                 button_view.skillrank = rank
                 button_view.skillname = skillname
-                #view.message = rollname+" "
+                button_view.message = rollname+" "
                 button_view.parentInter = interaction
         else:
             rollname += " Don't forget to update your skill experience."
@@ -167,8 +168,8 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     #Token interpretation
     if "." in url: #This is a full URL, so we need to strip it
         token = url.split("https://") #Remove this first if it's present, since we're splitting on / this would cause issues.
-        token = url.split("/") #Now split along slashes.
-        token = token[5] #Take the third entry
+        token = url.replace('?','/').split("/") #Now split along slashes and ?s
+        token = token[5] #Take the nth entry
     elif "/" in url: #I don't know how to interpret this. You left out .com but included slashes so I don't know where to start.
         await interaction.response.send_message("Unable to interpret provided url. Please either provide the full URL of your document or only the token.",ephemeral=True)
         return
@@ -202,17 +203,19 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])
         gAssoc = [d.strtolist(x) for x in gAssoc]
         gIDs = d.strtolist(gRow.iloc[0]["guildIDs"])
-        gIDs = [int(x) for x in gIDs]
+        print("\n +++++ gIDs:",gIDs)
         mcIDs = d.strtolist(gRow.iloc[0]["mainCharIDs"])
         roArray = d.strtolist(uRow.iloc[0]["readonly"])
     
+    print("gRow init \n",gRow)
+
     #Test read the character sheet.
     try:
         name = d.retrievevalue(location=d.statlayoutdict["name"],token=token)
     except googleapiclient.errors.HttpError:
         await interaction.response.send_message(
             "Unable to reach character sheet. Please make sure that it is either public or shared with the bot, whose email is: `"
-            +d.botmail+"`. If you provided a complete url, try providing only the token."
+            +d.botmail+"`. If you provided a complete url, try providing only the token. "
             +d.bugreporttext+" if that resolves the issue."
         )
         return
@@ -226,10 +229,8 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         pos = cIDs.index(token)
         #See if the token is already associated with this guild and allguild and default statuses are not changing, and that the readonly status wouldn't change.
         if gAssoc[pos] not in ["all",["all"]]:
-            print(gAssoc[pos])
             gAssoc[pos] = [int(x) for x in gAssoc[pos]]
         if ((guildID in gAssoc[pos] and not allguilds) or (gAssoc[pos] == "all" and allguilds)) and readonly == (roArray[pos] == "True"):
-            #print("checking default",mcIDs[gIDs.index(guildID)],default,token in mcIDs[gIDs.index(guildID)])
             if (token in mcIDs[gIDs.index(guildID)]) == default:
                 await interaction.response.send_message("This character is already linked as described. Nothing to do!",ephemeral=True)
                 return
@@ -241,15 +242,16 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     uRow.at[0,"readonly"] = roArray
     #See if we need to add the current guild to the list of guilds.
     if guildID not in gIDs:
-        print(type(guildID))
         gIDs.append(guildID)
-        print(gIDs)
+        print("gIDs:",gIDs)
+        gRow.at[0,"guildIDs"] = gIDs
     #If this character is to be the default for this guild, we should associate them.
     if default: 
         try: #Try reassigning if exists
             mcIDs[gIDs.index(guildID)] = token
         except IndexError: #If it doesn't, create it.
             mcIDs.append(token)
+            print("mcIDs",mcIDs)
             if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
     else:
@@ -259,6 +261,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             mcIDs.append(None)
             if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
+        gRow.at[0,"mcIDs"] = mcIDs #Update the info!
     #Set up guild association for character.
     #If it's set to all, overwrite the array with "all"
     if allguilds: 
@@ -272,7 +275,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     #If it's not set to all,
     elif len(gAssoc) <= pos: 
         gAssoc.append([guildID])
-        uRow.at[0,"guildAssociations"] = str(gAssoc)
+        uRow.at[0,"guildAssociations"] = [str(gAssoc)]
     elif guildID not in gAssoc[pos]:
         #If it was previously set to all, overwrite.
         if gAssoc[pos] == "all": 
@@ -281,7 +284,8 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             uRow.at[0,"guildAssociations"] = assocs
         else: #Otherwise, append
             x = gAssoc[pos]
-            x.append(guildID)
+            x.append(int(guildID))
+            print("x",x)
             uRow.at[0,"guildAssociations"] = x
     #Reformat data as necessary
     uRow.at[0,"guildAssociations"] = str(uRow.iloc[0]["guildAssociations"])
@@ -295,15 +299,18 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         uRow.to_sql(name='users',con=d.connection,if_exists="append")
         gRow.to_sql(name='guilds',con=d.connection,if_exists="append")
     else: #Otherwise, just update the table by replacement.
+        print("uRow:",uRow)
         guilds.loc[guilds['userID'] == interaction.user.id] = gRow
         users.loc[users['userID'] == interaction.user.id] = uRow
         users.to_sql(name='users',con=d.connection,if_exists="replace")
         guilds.to_sql(name='guilds',con=d.connection,if_exists="replace")
     #Construct a nice pretty message.
     #name = "NAME_PLACEHOLDER"
-    message += name
-    if readonly: message += " (read only)"
-    else: message += " (writable)"
+    message += "**"+name+"**"
+    if readonly: 
+        message += " (read only)"
+    else: 
+        message += " (writable)"
     message += " with ID `"+token+"` to be associated with "
     if allguilds: message += "**all** guilds"
     else: message += "**this** guild"
@@ -330,7 +337,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
 #    char="'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
 #    private="Hide the message from other users in this server. (Default: True)"
 #)
-async def view(interaction: discord.Interaction, char: str="guild",private: bool=True):
+async def view(interaction: discord.Interaction, char: str="guild"):
     """
     View a list of your characters.
 
@@ -338,9 +345,8 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
     ----------
     char: str
         "'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
-    private: bool
-        Hide the message from other users in this server. (Default: True)
     """
+    private = True #I am forcing these to be private because it means fewer options for users to deal with.
     header = ["Name","ID","Default?","Guild(s)","Bot Access"]
     #message = "Characters found: \n =============== \n **ID | Name | default? | guild association | bot access** \n"
     guildID = str(interaction.guild.id)

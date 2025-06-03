@@ -133,14 +133,19 @@ def readonlytest(token):
         return True
     
 def strtolist(string):
+    print("strtolist start ====")
+    print(string)
     if type(string) != str: #fallback case for non-string passed in.
         return string
     #Chop off the start/end brackets
-    if(string[0] == "[" and string[-1] == "]"): string = string[1:-1]
+    if(string[0] == "[" and string[-1] == "]"): 
+        string = string[1:-1]
     string = string.split(",") #Separate entries
     #Strip excess whitespace and quotes
     string = [x.strip().replace("'","").replace('"',"") for x in string]
-    if string == ['']: string = []
+    if string == ['']: 
+        string = []
+    print("strtolist end =====")
     return string
 
 def retrievevalue(location,token): #This function is for SINGULAR values ONLY!
