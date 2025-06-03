@@ -203,11 +203,11 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])
         gAssoc = [d.strtolist(x) for x in gAssoc]
         gIDs = d.strtolist(gRow.iloc[0]["guildIDs"])
-        print("\n +++++ gIDs:",gIDs)
         mcIDs = d.strtolist(gRow.iloc[0]["mainCharIDs"])
         roArray = d.strtolist(uRow.iloc[0]["readonly"])
     
-    print("gRow init \n",gRow)
+    print("\n========================\n")
+    print("uRow init \n",uRow["guildAssociations"])
 
     #Test read the character sheet.
     try:
@@ -243,7 +243,6 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     #See if we need to add the current guild to the list of guilds.
     if guildID not in gIDs:
         gIDs.append(guildID)
-        print("gIDs:",gIDs)
         gRow.at[0,"guildIDs"] = gIDs
     #If this character is to be the default for this guild, we should associate them.
     if default: 
@@ -251,7 +250,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             mcIDs[gIDs.index(guildID)] = token
         except IndexError: #If it doesn't, create it.
             mcIDs.append(token)
-            print("mcIDs",mcIDs)
+            print("mcIDs:",mcIDs)
             if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
     else:
@@ -262,6 +261,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
         gRow.at[0,"mcIDs"] = mcIDs #Update the info!
+    print("gRow[mcids]:",gRow.at[0,"mcIDs"])
     #Set up guild association for character.
     #If it's set to all, overwrite the array with "all"
     if allguilds: 
@@ -286,9 +286,10 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             x = gAssoc[pos]
             x.append(int(guildID))
             print("x",x)
-            uRow.at[0,"guildAssociations"] = x
+            uRow.at[0,"guildAssociations"] = [x]
     #Reformat data as necessary
-    uRow.at[0,"guildAssociations"] = str(uRow.iloc[0]["guildAssociations"])
+    uRow["guildAssociations"] = uRow["guildAssociations"].astype(str)
+    print("gA:", uRow["guildAssociations"])
     uRow["charIDs"] = uRow["charIDs"].astype("str")
     uRow["guildAssociations"] = uRow["guildAssociations"].astype("str")
     uRow["readonly"] = uRow["readonly"].astype("str")
@@ -299,7 +300,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         uRow.to_sql(name='users',con=d.connection,if_exists="append")
         gRow.to_sql(name='guilds',con=d.connection,if_exists="append")
     else: #Otherwise, just update the table by replacement.
-        print("uRow:",uRow)
+        print("uRow:\n",uRow)
         guilds.loc[guilds['userID'] == interaction.user.id] = gRow
         users.loc[users['userID'] == interaction.user.id] = uRow
         users.to_sql(name='users',con=d.connection,if_exists="replace")
@@ -346,6 +347,9 @@ async def view(interaction: discord.Interaction, char: str="guild"):
     char: str
         "'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
     """
+    
+    print("view ++++++++++++++++++++")
+
     private = True #I am forcing these to be private because it means fewer options for users to deal with.
     header = ["Name","ID","Default?","Guild(s)","Bot Access"]
     #message = "Characters found: \n =============== \n **ID | Name | default? | guild association | bot access** \n"
@@ -368,8 +372,12 @@ async def view(interaction: discord.Interaction, char: str="guild"):
         #Then prune the list.
         for character in charlist:
             pos = d.strtolist(uRow.iloc[0]["charIDs"]).index(character)
+            for x in d.strtolist(uRow.iloc[0]["guildAssociations"]):
+                print(x)
             gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])[pos]
-            if type(gAssoc) == str: gAssoc = [gAssoc]
+            print(gAssoc)
+            if (type(gAssoc) == str): 
+                gAssoc = [gAssoc]
             gAssoc = d.assocformat(gAssoc)
             if int(guildID) not in gAssoc and "all" not in gAssoc: 
                 charlist.remove(character)
@@ -404,11 +412,14 @@ async def view(interaction: discord.Interaction, char: str="guild"):
         gIDs = d.strtolist(gRow.iloc[0]["guildIDs"])
         #default status
         try:
+            print("mcIDs:",mcIDs,"gIDs:",gIDs)
             row[2] = str(mcIDs[gIDs.index(guildID)] == character)
         except ValueError: #If it's not associated with this guild
             row[2] = "N/A"
+        except IndexError:
+            pass #TODO: add a user-oriented bug message 
         gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])[pos]
-        if type(gAssoc) == str: 
+        if type(gAssoc) is str: 
             gAssoc = [gAssoc]
         gAssoc = d.assocformat(gAssoc)
         if len(gAssoc) > 1 and int(guildID) in gAssoc: #If there are multiple,
@@ -487,7 +498,6 @@ async def unlink(interaction: discord.Interaction, char: str):
             except ValueError: #If it's not, then there's nothing to do.
                 await interaction.response.send_message("There is no character data associated with this guild.")
                 return
-        #gIDs.pop(gloc); mcIDs.pop(gloc) #Do this at guild collection.
         gRow.at[0,"guildIDs"] = str(gIDs)
     elif char == "all":
         charlist = cIDs.copy()

@@ -134,7 +134,7 @@ def readonlytest(token):
     
 def strtolist(string):
     print("strtolist start ====")
-    print(string)
+    #print(string)
     if type(string) != str: #fallback case for non-string passed in.
         return string
     #Chop off the start/end brackets
@@ -143,8 +143,38 @@ def strtolist(string):
     string = string.split(",") #Separate entries
     #Strip excess whitespace and quotes
     string = [x.strip().replace("'","").replace('"',"") for x in string]
+
+#Check for sublists
+    i = 0
+    substring = []
+    substring_open = -1
+    toPop = []
+    while i < len(string): #while
+        print(i,string[i])
+        if string[i][0] == "[":
+            substring_open = i
+            substring = [string[i][1:]]
+            print(substring," ||| ",string)
+        elif string[i][-1] == "]":
+            substring.append(string[i][:-1])
+            toPop.append(i)
+            string[substring_open] = substring
+            substring_open = -1
+        else:
+            if substring_open >= 0:
+                substring.append(string)
+                toPop.append(i)
+        print(string[i])
+        i += 1
+
+    for x in sorted(toPop,reverse=True):
+        print(x,len(string))
+        string.pop(x)
+
     if string == ['']: 
         string = []
+
+    print(string)
     print("strtolist end =====")
     return string
 
@@ -188,7 +218,7 @@ def retrieveMcToken(guildID,userID,guilds,users):
         gloc = gIDs.index(guildID)
     except ValueError: #The player doesn't have anything in this guild at all
         return None
-    if mcIDs[gloc] != None: #There is a default character for the current guild
+    if mcIDs[gloc] is not None: #There is a default character for the current guild
         return mcIDs[gloc]
     #There is no default character for the current guild specifically
     uRow = users.loc[users['userID'] == userID]
