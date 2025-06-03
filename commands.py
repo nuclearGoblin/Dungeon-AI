@@ -207,7 +207,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         roArray = d.strtolist(uRow.iloc[0]["readonly"])
     
     print("\n========================\n")
-    print("uRow init \n",uRow["guildAssociations"])
+    print("Row init \n",gRow["mainCharIDs"])
 
     #Test read the character sheet.
     try:
@@ -260,8 +260,8 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             mcIDs.append(None)
             if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
-        gRow.at[0,"mcIDs"] = mcIDs #Update the info!
-    print("gRow[mcids]:",gRow.at[0,"mcIDs"])
+    gRow.at[0,"mainCharIDs"] = mcIDs #Update the info!
+    print("gRow[mcids]:",gRow.at[0,"mainCharIDs"])
     #Set up guild association for character.
     #If it's set to all, overwrite the array with "all"
     if allguilds: 

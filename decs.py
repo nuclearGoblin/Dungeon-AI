@@ -253,8 +253,7 @@ def getSkillInfo(skillname,token):
     return int(retrievevalue(sheetname+"!"+column+row,token)),row
 
 def giveExp(skill: int,rank: int,token,skillname: str):
-    rankup = False #track whether a skill levels up
-    message = "You gained one experience point in "+skillname
+    message = "You gained one experience point in **"+skillname+"**"
 
     #Get the current value
     loc_exp = statlayoutdict['skillexp']+str(skill)
