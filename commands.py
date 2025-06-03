@@ -540,7 +540,7 @@ async def unlink(interaction: discord.Interaction, char: str):
                 try:
                     gloc = gIDs.index(guildID)
                 except ValueError: #If it's not, then there's nothing to do.
-                    await interaction.response.send_message("There is no character data associated with the guild",guildID)
+                    await interaction.response.send_message("There is no character data associated with the guild"+guildID)
                     return
             gIDs.pop(gloc); mcIDs.pop(gloc)
             gRow.at[0,"guildIDs"] = str(gIDs)
@@ -603,6 +603,11 @@ async def levelup(interaction: discord.Interaction):
     """
     
     global users,guilds
+    message = ""
+    button_view = None
+
+    #The initial level-up message should be visible to everyone unless there are buttons, in which case it should be hidden until all operations are complete.
+    private = False
 
     #First, pull up the default character sheet
     token = d.retrieveMcToken(str(interaction.guild.id),interaction.user.id,guilds,users)
@@ -610,10 +615,11 @@ async def levelup(interaction: discord.Interaction):
     #Now I need to check each skill. This should be a batch job for efficiency.
     retrieve = [d.statlayoutdict["skillinfo"],
             d.statlayoutdict["level"],
-            d.statlayoutdict["experience"]
+            d.statlayoutdict["experience"],
+            d.statlayoutdict["unspent"]
             ]
     currentsheet = d.sheet.values()
-    skillinfo,lv,exp = currentsheet.batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
+    skillinfo,lv,exp,unspent = currentsheet.batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
     skillinfo = skillinfo['values']
     try:
         lv = int(lv['values'][0][0])
@@ -623,7 +629,45 @@ async def levelup(interaction: discord.Interaction):
         exp = int(exp['values'][0][0])
     except KeyError: #if exp is blank, assume it's 0
         exp = 0
+    try:
+        unspent = int(unspent['values'][0][0])
+    except KeyError: #if unspent points are blank, assume there are none.
+        unspent = 0
 
-    Now that we've 
-    for skill in skillinfo:
-        print(skill[0]skill[-3],skill[-2],skill[-1])
+    # Now that we've retrieved the values, start parsing skills for levelup requirements
+    if exp >= lv:
+        lv += 1
+        exp = 0
+        message += "You've reached level "+str(lv)+", giving you three stat points to spend. "
+        unspent += 3 
+    dinged = []
+    for i,skill in enumerate(skillinfo): #For each skill,
+        #Convert values to integers
+        skill[-3] = int(skill[-3])
+        skill[-1] = int(skill[-1])
+        #If there's enough exp for a skill to level up, then
+        if skill[-1] > d.skillTrackTable[skill[-2]][skill[-3]]:
+            dinged.append([skill[0],skill[-3]]) #Note that the skill level increased,
+            skillinfo[i][-1] = 0                #Reset exp for the skill to 0,
+            skillinfo[i][-3] += 1               #And level up
+    if len(dinged) > 0:
+        message += "The following skills leveled up:\n"
+        for x in dinged:
+            message += "- **"+x[0]+"** "+str(x[1])+" → "+str(x[1]+1)+"\n"
+    if unspent > 0:
+        message += "You have a total of **"+str(unspent)+"** stat points to allocate."
+        button_view = d.statAllocationButtons
+        private = True
+
+    requests = {
+            'value_input_option': 'USER_ENTERED',
+            'data': [
+                {'range':d.statlayoutdict["skillinfo"],'values':skillinfo},
+                {'range':d.statlayoutdict["level"],'values':[[lv]]},
+                {'range':d.statlayoutdict["experience"],'values':[[exp]]},
+                {'range':d.statlayoutdict["unspent"],'values':[[unspent]]}
+            ]
+            }
+    currentsheet.batchUpdate(spreadsheetId=token,body=requests).execute()
+
+    await interaction.response.send_message(message)#,view=button_view,ephemeral=private) 

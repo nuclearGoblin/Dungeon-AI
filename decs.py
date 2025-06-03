@@ -63,6 +63,7 @@ statlayoutdict = {
     'dexterity':"Character Sheet!H3",
     'intelligence':"Character Sheet!I3",
     'charisma':"Character Sheet!J3",
+    'stats':"Character Sheet!F3:J3",
     'hpmax':"Character Sheet!H5",
     'manamax':"Character Sheet!H6",
     'evasion':"Character Sheet!H7",
@@ -110,7 +111,8 @@ statlayoutdict = {
     'itemnames':"Skills and Inventory!P4:P",
     'itemdescs':"Skills and Inventory!Q4:Q",
     'itemweigh':"Skills and Inventory!V4:V",
-    'experience':"Character Sheet!Q40"
+    'experience':"Character Sheet!Q40",
+    'unspent':"Character Sheet!Q39"
 }
 
 skillTrackTable = {
@@ -124,7 +126,8 @@ skillTrackTable = {
 #sub-functions
 def readonlytest(token):
     try:
-        testinput = {"values":[["a"]]}; testloc = "Character Sheet!S41"
+        testinput = {"values":[["a"]]}
+        testloc = "Character Sheet!S41"
         sheet.values().update(spreadsheetId=token,range=testloc,valueInputOption="USER_ENTERED",body=testinput).execute()
         gotback = sheet.values().get(spreadsheetId=token,range=testloc).execute().get("values",[])
         if gotback != testinput["values"]:
@@ -304,3 +307,70 @@ class expButton(discord.ui.View):
         await interaction.response.defer()
 
 
+
+class statAllocationButtons(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+
+        self.token = None
+        self.strength = 0
+        self.con = 0
+        self.dex = 0
+        self.intellect = 0
+        self.cha = 0
+        self.unspent = 0
+
+        self.message = "Remaining points to allocate: **"+str(self.unspent)+"**"
+
+    str_up = False
+    con_up = False
+    dex_up = False
+    int_up = False
+    cha_up = False
+
+    # Buttons for adding stats --------------------------------------------------------
+    @discord.ui.button(label="+STR",style=discord.ButtonStyle.primary)
+    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.strength += 1
+        self.unspent -= 1
+        if self.unspent <= 0:
+            button.disabled = True
+
+    @discord.ui.button(label="+CON",style=discord.ButtonStyle.primary)
+    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.con += 1
+        self.unspent -= 1
+        if self.unspent <= 0:
+            button.disabled = True
+
+    @discord.ui.button(label="+DEX",style=discord.ButtonStyle.primary)
+    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.dex += 1
+        self.unspent -= 1
+        if self.unspent <= 0:
+            button.disabled = True
+
+    @discord.ui.button(label="+INT",style=discord.ButtonStyle.primary)
+    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.intellect += 1
+        self.unspent -= 1
+        if self.unspent <= 0:
+            button.disabled = True
+
+    @discord.ui.button(label="+CHA",style=discord.ButtonStyle.primary)
+    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.cha += 1
+        self.unspent -= 1
+        if self.unspent <= 0:
+            button.disabled = True
+
+    #Buttons for subtracting stats ----------------------------------------------------
+    @discord.ui.button(label="-STR",style=discord.ButtonStyle.danger,disabled=True)
+    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.cha -= 1
+        self.unspent += 1
+        if not cha_up:
+            button.disabled = True
+
+#    @discord.ui.button(label="-CON",style=discord.ButtonStyle.danger,disabled=True)
+#    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
