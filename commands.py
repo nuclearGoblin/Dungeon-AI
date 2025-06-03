@@ -454,18 +454,8 @@ async def unlink(interaction: discord.Interaction, char: str):
     """
     global users,guilds
     userdel = False
-    if False: #non-commitally removing this, as I want to restructure.
-        if char == "all":
-            #delete everything
-            users = users[users["userID"] != interaction.user.id]
-            guilds = guilds[guilds["userID"] != interaction.user.id]
-            users.to_sql(name='users',con=d.connection,if_exists="replace")
-            guilds.to_sql(name='guilds',con=d.connection,if_exists="replace")
-            await interaction.response.send_message("All of your user data was deleted from the bot's database.",ephemeral=True)
-            #Reload edited databases.
-            users = pd.read_sql("SELECT "+", ".join(d.userCols)+" FROM users",d.connection,dtype=d.types)
-            guilds = pd.read_sql("SELECT "+", ".join(d.guildCols)+" FROM guilds",d.connection,dtype=d.types)
-            return
+    if char == "all":
+        userdel = True
     guildID = str(interaction.guild.id)
     #Pull up the existing data.
     gRow = guilds.loc[guilds['userID'] == interaction.user.id]
@@ -587,8 +577,10 @@ async def unlink(interaction: discord.Interaction, char: str):
         )
     if emptyguilds: 
         message += " "+str(emptyguilds)+" guild"
-        if emptyguilds>1: message += "s no longer have"
-        else: message += " no longer has"
+        if emptyguilds>1: 
+            message += "s no longer have"
+        else: 
+            message += " no longer has"
         message += " linked characters after this."
     if userdel:
         message += " This action resulted in the removal of all of your user data."
@@ -601,3 +593,37 @@ async def unlink(interaction: discord.Interaction, char: str):
 # - functions within this will be called by skillroll
 #requestroll (be able to request players click a button and roll a thing.)
 #configure (bot settings per server, maybe uses a third table, things like who can view sheets and request rolls.)
+
+#### Encounter commands ####
+
+@d.tree.command()
+async def levelup(interaction: discord.Interaction):
+    """
+    Scan for current exp on your current default character sheet and rank/level up as appropriate.
+    """
+    
+    global users,guilds
+
+    #First, pull up the default character sheet
+    token = d.retrieveMcToken(str(interaction.guild.id),interaction.user.id,guilds,users)
+
+    #Now I need to check each skill. This should be a batch job for efficiency.
+    retrieve = [d.statlayoutdict["skillinfo"],
+            d.statlayoutdict["level"],
+            d.statlayoutdict["experience"]
+            ]
+    currentsheet = d.sheet.values()
+    skillinfo,lv,exp = currentsheet.batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
+    skillinfo = skillinfo['values']
+    try:
+        lv = int(lv['values'][0][0])
+    except KeyError: #If level is blank, assume it's 1
+        lv = 1
+    try:
+        exp = int(exp['values'][0][0])
+    except KeyError: #if exp is blank, assume it's 0
+        exp = 0
+
+    Now that we've 
+    for skill in skillinfo:
+        print(skill[0]skill[-3],skill[-2],skill[-1])

@@ -106,9 +106,11 @@ statlayoutdict = {
     'skillranks':"Skills and Inventory!J4:J",
     'skilltrack':"Skills and Inventory!K4:K", #!K4:K #this one is not searched.
     'skillexp':"Skills and Inventory!L", #!L4:L #this one is not searched.
+    'skillinfo':"Skills and Inventory!B4:L",
     'itemnames':"Skills and Inventory!P4:P",
     'itemdescs':"Skills and Inventory!Q4:Q",
-    'itemweigh':"Skills and Inventory!V4:V"
+    'itemweigh':"Skills and Inventory!V4:V",
+    'experience':"Character Sheet!Q40"
 }
 
 skillTrackTable = {
@@ -133,7 +135,6 @@ def readonlytest(token):
         return True
     
 def strtolist(string):
-    print("strtolist start ====")
     #print(string)
     if type(string) != str: #fallback case for non-string passed in.
         return string
@@ -150,11 +151,9 @@ def strtolist(string):
     substring_open = -1
     toPop = []
     while i < len(string): #while
-        print(i,string[i])
         if string[i][0] == "[":
             substring_open = i
             substring = [string[i][1:]]
-            print(substring," ||| ",string)
         elif string[i][-1] == "]":
             substring.append(string[i][:-1])
             toPop.append(i)
@@ -164,18 +163,14 @@ def strtolist(string):
             if substring_open >= 0:
                 substring.append(string)
                 toPop.append(i)
-        print(string[i])
         i += 1
 
     for x in sorted(toPop,reverse=True):
-        print(x,len(string))
         string.pop(x)
 
     if string == ['']: 
         string = []
 
-    print(string)
-    print("strtolist end =====")
     return string
 
 def retrievevalue(location,token): #This function is for SINGULAR values ONLY!
@@ -263,7 +258,6 @@ def giveExp(skill: int,rank: int,token,skillname: str):
     maxExp = skillTrackTable[retrievevalue(statlayoutdict['skilltrack']+str(skill),token)][rank]
     if currentexp >= maxExp:
         #Rankups don't happen until combat is over, so the player will have to handle that themselves.
-        rankup = True #flag to notify the player.
         message += ", allowing you to progress to the next rank!"
     else:
         message += "."

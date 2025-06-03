@@ -17,9 +17,6 @@ if SPHINX != "sphinx":
     values = result.get("values",[])
     if not values:
         raise ValueError("No data found in spreadsheet "+SAMPLE_SPREADSHEET_ID)
-    else:
-        print("DEBUG =================")
-        for row in values: print(row)
 
 #Check the database on spin-up -- don't want things to blip on if they're broken.
 try: #Check if the tables needed exist
