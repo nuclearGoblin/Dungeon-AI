@@ -276,6 +276,16 @@ def signed(intval,mode): #microfunction for handling an if/else I have to do lik
         return intval
     return 0-intval #Currently only modes are +/- so this is fine.
 
+def subtractor_check(self):
+    if self.unspent > 0:
+        for child in self.children:
+            if (type(child) is discord.ui.Button) and child.label[0] == "+":
+                child.disabled = True
+    elif self.str_up == self.con_up == self.dex_up == self.int_up == self.cha_up == 0:
+        for child in self.children:
+            if (type(child) is discord.ui.Button) and child.label == "Save":
+                child.disabled = True
+
 # Classes ###########
 
 class expButton(discord.ui.View):
@@ -306,8 +316,6 @@ class expButton(discord.ui.View):
         #self.stop()
         await interaction.response.defer()
 
-
-
 class statAllocationButtons(discord.ui.View):
     def __init__(self):
         super().__init__()
@@ -320,57 +328,125 @@ class statAllocationButtons(discord.ui.View):
         self.cha = 0
         self.unspent = 0
 
-        self.message = "Remaining points to allocate: **"+str(self.unspent)+"**"
+        self.embed = discord.Embed(title="Stat Allocation",
+                                   description="Points remaining: "+str(self.unspent),
+                                   url="https://docs.google.com/spreadsheets/d/"+str(self.token)
+                                   )
 
-    str_up = False
-    con_up = False
-    dex_up = False
-    int_up = False
-    cha_up = False
+        self.embed.add_field(name="Strength",value = self.strength)
+        self.embed.add_field(name="Constitution",value = self.con)
+        self.embed.add_field(name="Dexterity",value=self.dex)
+        self.embed.add_field(name="Intelligence",value=self.intellect)
+        self.embed.add_field(name="Charisma",value=self.cha)
+
+        self.str_up = 0
+        self.con_up = 0
+        self.dex_up = 0
+        self.int_up = 0
+        self.cha_up = 0
 
     # Buttons for adding stats --------------------------------------------------------
-    @discord.ui.button(label="+STR",style=discord.ButtonStyle.primary)
-    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="+ STR",style=discord.ButtonStyle.primary,custom_id="strUp")
+    async def click_strUp(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.strength += 1
         self.unspent -= 1
         if self.unspent <= 0:
             button.disabled = True
+        self.str_up += 1
+        for child in self.children:
+            if (type(child) is discord.ui.Button) and child.label in ["- STR","Save"]:
+                child.disabled = False
 
-    @discord.ui.button(label="+CON",style=discord.ButtonStyle.primary)
-    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="+ CON",style=discord.ButtonStyle.primary,custom_id="conUp")
+    async def click_conUp(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.con += 1
         self.unspent -= 1
         if self.unspent <= 0:
             button.disabled = True
+        self.con_up += 1
+        for child in self.children:
+            if (type(child) is discord.ui.Button) and child.label in ["- CON","Save"]:
+                child.disabled = False
 
-    @discord.ui.button(label="+DEX",style=discord.ButtonStyle.primary)
-    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="+ DEX",style=discord.ButtonStyle.primary,custom_id="dexUp")
+    async def click_dexUp(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.dex += 1
         self.unspent -= 1
         if self.unspent <= 0:
             button.disabled = True
+        self.dex_up += 1
+        for child in self.children:
+            if (type(child) is discord.ui.Button) and child.label in ["- DEX","Save"]:
+                child.disabled = False
 
-    @discord.ui.button(label="+INT",style=discord.ButtonStyle.primary)
-    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="+ INT",style=discord.ButtonStyle.primary,custom_id="intUp")
+    async def click_intUp(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.intellect += 1
         self.unspent -= 1
         if self.unspent <= 0:
             button.disabled = True
+        self.int_up += 1
+        for child in self.children:
+            if (type(child) is discord.ui.Button) and child.label in ["- INT","Save"]:
+                child.disabled = False
 
-    @discord.ui.button(label="+CHA",style=discord.ButtonStyle.primary)
-    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="+ CHA",style=discord.ButtonStyle.primary,custom_id="chaUp")
+    async def click_chaUp(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.cha += 1
         self.unspent -= 1
         if self.unspent <= 0:
             button.disabled = True
+        self.cha_up += 1
+        for child in self.children:
+            if (type(child) is discord.ui.Button) and child.label in ["- CHA","Save"]:
+                child.disabled = False
 
     #Buttons for subtracting stats ----------------------------------------------------
-    @discord.ui.button(label="-STR",style=discord.ButtonStyle.danger,disabled=True)
-    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="- STR",style=discord.ButtonStyle.danger,disabled=True,custom_id="strDn")
+    async def click_strDn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.strength -= 1
+        self.unspent += 1
+        self.str_up -= 1
+        if self.str_up <= 0:
+            button.disabled = True
+        subtractor_check(self)
+
+    @discord.ui.button(label="- CON",style=discord.ButtonStyle.danger,disabled=True,custom_id="conDn")
+    async def click_conDn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.con -= 1
+        self.unspent += 1
+        self.con_up -= 1
+        if self.con_up <= 0:
+            button.disabled = True
+        subtractor_check(self)
+
+    @discord.ui.button(label="- DEX",style=discord.ButtonStyle.danger,disabled=True,custom_id="dexDn")
+    async def click_dexDn(self, interaction: discord.Interaction, button:discord.ui.Button):
+        self.dex -= 1
+        self.unspent += 1
+        self.dex_up -= 1
+        if dex_up <= 0:
+            button.disabled = True
+        subtractor_check(self)
+
+    @discord.ui.button(label="- INT",style=discord.ButtonStyle.danger,disabled=True,custom_id="intDn")
+    async def click_intDn(self, interaction: discord.Interaction, button:discord.ui.Button):
+        self.intellect -= 1
+        self.unspent += 1
+        self.int_up -= 1
+        if self.int_up <= 0:
+            button.disabled = True
+        subtractor_check(self)
+
+    @discord.ui.button(label="- CHA",style=discord.ButtonStyle.danger,disabled=True,custom_id="chaDn")
+    async def click_chaDn(self,interaction: discord.Interaction, button:discord.ui.Button):
         self.cha -= 1
         self.unspent += 1
-        if not cha_up:
+        self.cha_up -= 1
+        if self.cha_up <= 0:
             button.disabled = True
+        subtractor_check(self)
 
-#    @discord.ui.button(label="-CON",style=discord.ButtonStyle.danger,disabled=True)
-#    async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Save",style=discord.ButtonStyle.success,disabled=True,custom_id="save")
+    async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
+        button.disabled = True

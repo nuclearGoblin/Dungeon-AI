@@ -656,7 +656,7 @@ async def levelup(interaction: discord.Interaction):
             message += "- **"+x[0]+"** "+str(x[1])+" → "+str(x[1]+1)+"\n"
     if unspent > 0:
         message += "You have a total of **"+str(unspent)+"** stat points to allocate."
-        button_view = d.statAllocationButtons
+        button_view = d.statAllocationButtons()
         private = True
 
     requests = {
@@ -670,4 +670,4 @@ async def levelup(interaction: discord.Interaction):
             }
     currentsheet.batchUpdate(spreadsheetId=token,body=requests).execute()
 
-    await interaction.response.send_message(message)#,view=button_view,ephemeral=private) 
+    await interaction.response.send_message(message,view=button_view,ephemeral=private) 
