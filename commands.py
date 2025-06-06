@@ -605,6 +605,7 @@ async def levelup(interaction: discord.Interaction):
     global users,guilds
     message = ""
     button_view = None
+    embed = None
 
     #The initial level-up message should be visible to everyone unless there are buttons, in which case it should be hidden until all operations are complete.
     private = False
@@ -616,10 +617,11 @@ async def levelup(interaction: discord.Interaction):
     retrieve = [d.statlayoutdict["skillinfo"],
             d.statlayoutdict["level"],
             d.statlayoutdict["experience"],
-            d.statlayoutdict["unspent"]
+            d.statlayoutdict["unspent"],
+            d.statlayoutdict["stats"]
             ]
     currentsheet = d.sheet.values()
-    skillinfo,lv,exp,unspent = currentsheet.batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
+    skillinfo,lv,exp,unspent,stats = currentsheet.batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
     skillinfo = skillinfo['values']
     try:
         lv = int(lv['values'][0][0])
@@ -655,8 +657,30 @@ async def levelup(interaction: discord.Interaction):
         for x in dinged:
             message += "- **"+x[0]+"** "+str(x[1])+" → "+str(x[1]+1)+"\n"
     if unspent > 0:
-        message += "You have a total of **"+str(unspent)+"** stat points to allocate."
+        #Get stat info
+        strength,con,dex,intellect,cha = stats['values'][0]
+        #Set up embed for information about level up
+        embed = discord.Embed(title="Stat Allocation",
+                              description = "Points remaining: "+str(unspent),
+                              url="https://docs.google.com/spreadsheets/d/"+str(token)
+                              )
+        embed.add_field(name="Strength",value = strength)
+        embed.add_field(name="Constitution",value = con)
+        embed.add_field(name="Dexterity",value=dex)
+        embed.add_field(name="Intelligence",value=intellect)
+        embed.add_field(name="Charisma",value=cha)
+        #Pass things into buttons
         button_view = d.statAllocationButtons()
+        button_view.embed = embed
+        button_view.parentInter = interaction
+        button_view.strength = int(strength)
+        button_view.con = int(con)
+        button_view.dex = int(dex)
+        button_view.intellect = int(intellect)
+        button_view.cha = int(cha)
+        button_view.unspent = int(unspent)
+        button_view.token = token
+
         private = True
 
     requests = {
@@ -670,4 +694,7 @@ async def levelup(interaction: discord.Interaction):
             }
     currentsheet.batchUpdate(spreadsheetId=token,body=requests).execute()
 
-    await interaction.response.send_message(message,view=button_view,ephemeral=private) 
+    if message == "" and button_view == embed == None: #If there's nothing to do,
+        message = "You're already leveled up; nothing to do!"
+        private = True
+    await interaction.response.send_message(message,view=button_view,embed=embed,ephemeral=private) 

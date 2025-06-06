@@ -134,11 +134,9 @@ def readonlytest(token):
             raise ValueError("Tried to input "+str(testinput)+"but got back "+str(gotback)+".")
         return False
     except HttpError:
-        #print("read only.")
         return True
     
 def strtolist(string):
-    #print(string)
     if type(string) != str: #fallback case for non-string passed in.
         return string
     #Chop off the start/end brackets
@@ -180,7 +178,6 @@ def retrievevalue(location,token): #This function is for SINGULAR values ONLY!
     try:
         value = sheet.values().get(spreadsheetId=token,range=location).execute().get("values",[])[0][0]
     except IndexError:
-        print("Value at "+location+" not found.")
         value = "VALUE_NOT_FOUND"
     return value
 
@@ -276,16 +273,33 @@ def signed(intval,mode): #microfunction for handling an if/else I have to do lik
         return intval
     return 0-intval #Currently only modes are +/- so this is fine.
 
-def subtractor_check(self):
+def unspent_check(self):
+    #Enable addition if points are newly unspent
     if self.unspent > 0:
         for child in self.children:
             if (type(child) is discord.ui.Button) and child.label[0] == "+":
+                child.disabled = False
+    #Disable addition if there are no points to spend
+    else:
+        for child in self.children:
+            if (type(child) is discord.ui.Button) and child.label[0] == "+":
                 child.disabled = True
-    elif self.str_up == self.con_up == self.dex_up == self.int_up == self.cha_up == 0:
+    #Disable "Save" if nothing is changed
+    if self.str_up == self.con_up == self.dex_up == self.int_up == self.cha_up == 0:
+        for child in self.children:
+            if (type(child) is discord.ui.Button) and (child.label == "Save" or child.label[0] == "-"):
+                child.disabled = True
+    #Enable "Save" if something has changed
+    else:
         for child in self.children:
             if (type(child) is discord.ui.Button) and child.label == "Save":
-                child.disabled = True
+                child.disabled = False
+                child.emoji = None
 
+def update_embed(self):
+    editembed = self.embed.to_dict()
+    editembed['description'] = "Points remaining: "+str(self.unspent)
+    return discord.Embed.from_dict(editembed)
 # Classes ###########
 
 class expButton(discord.ui.View):
@@ -303,15 +317,9 @@ class expButton(discord.ui.View):
     @discord.ui.button(label="Gain Skill EXP",style=discord.ButtonStyle.success)
     async def click(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.message += giveExp(self.skillrow,self.skillrank,self.token,self.skillname)
-        print(type(self.message))
-        print(len(self.message))
-        print(self.message)
         button.disabled = True
         button.label = "EXP Gained"
         button.emoji = "✔️"
-        # button.disabled = True
-        #button.label = "EXP Gained"
-        #button.emoji = ":heavy_check_mark:"
         await self.parentInter.edit_original_response(content=self.message,view=self)#,ephemeral=self.private)
         #self.stop()
         await interaction.response.defer()
@@ -319,7 +327,7 @@ class expButton(discord.ui.View):
 class statAllocationButtons(discord.ui.View):
     def __init__(self):
         super().__init__()
-
+        #To be passed in
         self.token = None
         self.strength = 0
         self.con = 0
@@ -327,18 +335,9 @@ class statAllocationButtons(discord.ui.View):
         self.intellect = 0
         self.cha = 0
         self.unspent = 0
-
-        self.embed = discord.Embed(title="Stat Allocation",
-                                   description="Points remaining: "+str(self.unspent),
-                                   url="https://docs.google.com/spreadsheets/d/"+str(self.token)
-                                   )
-
-        self.embed.add_field(name="Strength",value = self.strength)
-        self.embed.add_field(name="Constitution",value = self.con)
-        self.embed.add_field(name="Dexterity",value=self.dex)
-        self.embed.add_field(name="Intelligence",value=self.intellect)
-        self.embed.add_field(name="Charisma",value=self.cha)
-
+        self.parentInter = None
+        self.embed = None
+        #To be manipulated here only
         self.str_up = 0
         self.con_up = 0
         self.dex_up = 0
@@ -352,10 +351,18 @@ class statAllocationButtons(discord.ui.View):
         self.unspent -= 1
         if self.unspent <= 0:
             button.disabled = True
+            self.private = False
         self.str_up += 1
         for child in self.children:
             if (type(child) is discord.ui.Button) and child.label in ["- STR","Save"]:
                 child.disabled = False
+        unspent_check(self)
+        #Update the embed accordingly
+        self.embed.set_field_at(0,name="Strength",value=self.strength)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
 
     @discord.ui.button(label="+ CON",style=discord.ButtonStyle.primary,custom_id="conUp")
     async def click_conUp(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -367,6 +374,13 @@ class statAllocationButtons(discord.ui.View):
         for child in self.children:
             if (type(child) is discord.ui.Button) and child.label in ["- CON","Save"]:
                 child.disabled = False
+        unspent_check(self)
+        #Update the embed accordingly
+        self.embed.set_field_at(1,name="Constitution",value=self.con)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
 
     @discord.ui.button(label="+ DEX",style=discord.ButtonStyle.primary,custom_id="dexUp")
     async def click_dexUp(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -378,6 +392,13 @@ class statAllocationButtons(discord.ui.View):
         for child in self.children:
             if (type(child) is discord.ui.Button) and child.label in ["- DEX","Save"]:
                 child.disabled = False
+        unspent_check(self)
+        #Update the embed accordingly
+        self.embed.set_field_at(2,name="Dexterity",value=self.dex)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
 
     @discord.ui.button(label="+ INT",style=discord.ButtonStyle.primary,custom_id="intUp")
     async def click_intUp(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -389,6 +410,13 @@ class statAllocationButtons(discord.ui.View):
         for child in self.children:
             if (type(child) is discord.ui.Button) and child.label in ["- INT","Save"]:
                 child.disabled = False
+        unspent_check(self)
+        #Update the embed accordingly
+        self.embed.set_field_at(3,name="Intelligence",value=self.intellect)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
 
     @discord.ui.button(label="+ CHA",style=discord.ButtonStyle.primary,custom_id="chaUp")
     async def click_chaUp(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -400,6 +428,13 @@ class statAllocationButtons(discord.ui.View):
         for child in self.children:
             if (type(child) is discord.ui.Button) and child.label in ["- CHA","Save"]:
                 child.disabled = False
+        unspent_check(self)
+        #Update the embed accordingly
+        self.embed.set_field_at(4,name="Charisma",value=self.cha)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
 
     #Buttons for subtracting stats ----------------------------------------------------
     @discord.ui.button(label="- STR",style=discord.ButtonStyle.danger,disabled=True,custom_id="strDn")
@@ -409,7 +444,13 @@ class statAllocationButtons(discord.ui.View):
         self.str_up -= 1
         if self.str_up <= 0:
             button.disabled = True
-        subtractor_check(self)
+        unspent_check(self)
+        self.embed.set_field_at(0,name="Strength",value=self.strength)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
+
 
     @discord.ui.button(label="- CON",style=discord.ButtonStyle.danger,disabled=True,custom_id="conDn")
     async def click_conDn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -418,16 +459,26 @@ class statAllocationButtons(discord.ui.View):
         self.con_up -= 1
         if self.con_up <= 0:
             button.disabled = True
-        subtractor_check(self)
+        unspent_check(self)
+        self.embed.set_field_at(1,name="Constitution",value=self.con)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
 
     @discord.ui.button(label="- DEX",style=discord.ButtonStyle.danger,disabled=True,custom_id="dexDn")
     async def click_dexDn(self, interaction: discord.Interaction, button:discord.ui.Button):
         self.dex -= 1
         self.unspent += 1
         self.dex_up -= 1
-        if dex_up <= 0:
+        if self.dex_up <= 0:
             button.disabled = True
-        subtractor_check(self)
+        unspent_check(self)
+        self.embed.set_field_at(2,name="Dexterity",value=self.dex)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
 
     @discord.ui.button(label="- INT",style=discord.ButtonStyle.danger,disabled=True,custom_id="intDn")
     async def click_intDn(self, interaction: discord.Interaction, button:discord.ui.Button):
@@ -436,7 +487,12 @@ class statAllocationButtons(discord.ui.View):
         self.int_up -= 1
         if self.int_up <= 0:
             button.disabled = True
-        subtractor_check(self)
+        unspent_check(self)
+        self.embed.set_field_at(3,name="Intelligence",value=self.intellect)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
 
     @discord.ui.button(label="- CHA",style=discord.ButtonStyle.danger,disabled=True,custom_id="chaDn")
     async def click_chaDn(self,interaction: discord.Interaction, button:discord.ui.Button):
@@ -445,8 +501,34 @@ class statAllocationButtons(discord.ui.View):
         self.cha_up -= 1
         if self.cha_up <= 0:
             button.disabled = True
-        subtractor_check(self)
+        unspent_check(self)
+        self.embed.set_field_at(4,name="Charisma",value=self.cha)
+        self.embed = update_embed(self)
+        #And send it
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
 
     @discord.ui.button(label="Save",style=discord.ButtonStyle.success,disabled=True,custom_id="save")
     async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
-        button.disabled = True
+        #Lock in changes
+        self.str_up = 0
+        self.con_up = 0
+        self.dex_up = 0
+        self.int_up = 0
+        self.cha_up = 0
+        unspent_check(self)
+        button.emoji = "✔️"
+        #update the sheet
+        requests = {
+                'value_input_option': 'USER_ENTERED',
+                'data': [
+                    {'range':statlayoutdict["stats"],
+                                    'values':[[str(self.strength),str(self.con),str(self.dex),str(self.intellect),str(self.cha)]]},
+                    {'range':statlayoutdict["unspent"],
+                                    'values':[[self.unspent]]}
+                ]
+                }
+        sheet.values().batchUpdate(spreadsheetId=self.token,body=requests).execute()
+        #And send the update to discord
+        await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
