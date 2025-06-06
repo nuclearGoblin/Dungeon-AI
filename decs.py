@@ -206,7 +206,7 @@ def check_alias(name):
         return ("NAME_NOT_FOUND",name)
     return (list,name)
 
-def retrieveMcToken(guildID,userID,guilds,users):
+def retrieveMcToken(guildID: str,userID,guilds,users):
     #First, check if current guild has an assigned main character for the user.
     gRow = guilds.loc[guilds['userID'] == userID]
     if gRow.empty:
@@ -550,21 +550,28 @@ class endEncounter(discord.ui.View):
     def __init__(self):
         super().__init__()
         self.pips = 0
-        self.original_message = ""
+        self.message = ""
         self.parentInter = None
         self.guilds = None
         self.users = None
-        
-        self.numclicks = 0
+        self.ctx = None
+        #Track who clicked the button to prevent silly exp farming 
+        self.clickedby = []
 
-    @discord.ui.button(label="Level Up!",style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Gain pips",style=discord.ButtonStyle.success)
     async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
-        self.numclicks += 1
-        message = self.original_message+" "+str(self.numclicks)+" people have started leveling up."
-        await self.parentInter.edit_original_response(content=message,view=self)
-        token = retrieveMcToken(interaction.guild_id,interaction.user,self.guilds,self.users)
-        exp = int(retrievevalue(statlayoutdict["experience"],token,guilds,users))+self.pips
-        sheet.values().update(spreadsheetId=token,range=statlayoutdict["experience"],
+        if interaction.user in self.clickedby: #If the same person clicks it twice,
+            await interaction.response.defer() #Ignore them they're silly
+        else: #Otherwise,
+            self.clickedby.append(interaction.user) #Note that they clicked it
+            desc = ""
+            for user in self.clickedby:
+                desc += "<@"+str(user.id)+">, "
+            embed = discord.Embed(title="Pips claimed by:",description=desc[:-2])
+            await self.parentInter.edit_original_response(content=self.message,view=self,embed=embed)
+            token = retrieveMcToken(str(interaction.guild_id),interaction.user.id,self.guilds,self.users)
+            exp = int(retrievevalue(statlayoutdict["experience"],token))+self.pips
+            sheet.values().update(spreadsheetId=token,range=statlayoutdict["experience"],
                                 body={'values':[[exp]],'range':statlayoutdict["experience"], 'majorDimension':'ROWS'},
                                 valueInputOption = 'USER_ENTERED').execute()
-        await interaction.response.defer()
+            await interaction.response.defer()

@@ -601,7 +601,7 @@ async def levelup(interaction: discord.Interaction):
     """
     Scan for current exp on your current default character sheet and rank/level up as appropriate.
     """
-    
+
     global users,guilds
     message = ""
     button_view = None
@@ -745,13 +745,13 @@ async def end_encounter(interaction: discord.Interaction, pips: int=0):
     """
     global users,guilds
 
-    message = "Encounter won! You've earned **"+pips+"** experience pips."
-    
+    message = "Encounter won! You've earned **"+str(pips)+"** experience pip(s). Click below to claim pips and then run: ```/levelup```"
+
     button_view = d.endEncounter()
-    button_view.original_message = message
+    button_view.message = message
     button_view.pips = pips
     button_view.parentInter = interaction
     button_view.users = users
     button_view.guilds = guilds
 
-    message += " Click below to start leveling up."
+    await interaction.response.send_message(message,view=button_view)
