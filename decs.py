@@ -112,7 +112,8 @@ statlayoutdict = {
     'itemdescs':"Skills and Inventory!Q4:Q",
     'itemweigh':"Skills and Inventory!V4:V",
     'experience':"Character Sheet!Q40",
-    'unspent':"Character Sheet!Q39"
+    'unspent':"Character Sheet!Q39",
+    'currenthp':"Character Sheet!Q38"
 }
 
 skillTrackTable = {
@@ -122,6 +123,9 @@ skillTrackTable = {
         'C': [0,1,13,25,37,49,61,73,85, 97, 109,121,133,145,157,169,181,193,205,217,229],
         'D': [0,1,16,31,46,61,76,91,106,121,136,151,166,181,196,211,226,241,256,271,286]
         }
+
+def hp(con: int): #Calculate max HP
+    return con*(10+(con-1)/2)
 
 #sub-functions
 def readonlytest(token):
@@ -300,7 +304,10 @@ def update_embed(self):
     editembed = self.embed.to_dict()
     editembed['description'] = "Points remaining: "+str(self.unspent)
     return discord.Embed.from_dict(editembed)
+
+#####################
 # Classes ###########
+#####################
 
 class expButton(discord.ui.View):
     def __init__(self):
@@ -337,6 +344,7 @@ class statAllocationButtons(discord.ui.View):
         self.unspent = 0
         self.parentInter = None
         self.embed = None
+        self.currenthp = 0
         #To be manipulated here only
         self.str_up = 0
         self.con_up = 0
@@ -511,6 +519,9 @@ class statAllocationButtons(discord.ui.View):
     @discord.ui.button(label="Save",style=discord.ButtonStyle.success,disabled=True,custom_id="save")
     async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
         #Lock in changes
+        oldmaxhp = hp(self.con - self.con_up)
+        newmaxhp = hp(self.con)
+        self.currenthp += newmaxhp - oldmaxhp
         self.str_up = 0
         self.con_up = 0
         self.dex_up = 0
@@ -525,10 +536,35 @@ class statAllocationButtons(discord.ui.View):
                     {'range':statlayoutdict["stats"],
                                     'values':[[str(self.strength),str(self.con),str(self.dex),str(self.intellect),str(self.cha)]]},
                     {'range':statlayoutdict["unspent"],
-                                    'values':[[self.unspent]]}
+                                    'values':[[self.unspent]]},
+                    {'range':statlayoutdict["currenthp"],
+                                    'values':[[self.currenthp]]}
                 ]
                 }
         sheet.values().batchUpdate(spreadsheetId=self.token,body=requests).execute()
         #And send the update to discord
         await self.parentInter.edit_original_response(view=self,embed=self.embed)
+        await interaction.response.defer()
+
+class endEncounter(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+        self.pips = 0
+        self.original_message = ""
+        self.parentInter = None
+        self.guilds = None
+        self.users = None
+        
+        self.numclicks = 0
+
+    @discord.ui.button(label="Level Up!",style=discord.ButtonStyle.success)
+    async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
+        self.numclicks += 1
+        message = self.original_message+" "+str(self.numclicks)+" people have started leveling up."
+        await self.parentInter.edit_original_response(content=message,view=self)
+        token = retrieveMcToken(interaction.guild_id,interaction.user,self.guilds,self.users)
+        exp = int(retrievevalue(statlayoutdict["experience"],token,guilds,users))+self.pips
+        sheet.values().update(spreadsheetId=token,range=statlayoutdict["experience"],
+                                body={'values':[[exp]],'range':statlayoutdict["experience"], 'majorDimension':'ROWS'},
+                                valueInputOption = 'USER_ENTERED').execute()
         await interaction.response.defer()

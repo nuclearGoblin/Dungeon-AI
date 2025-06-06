@@ -618,10 +618,11 @@ async def levelup(interaction: discord.Interaction):
             d.statlayoutdict["level"],
             d.statlayoutdict["experience"],
             d.statlayoutdict["unspent"],
-            d.statlayoutdict["stats"]
+            d.statlayoutdict["stats"],
+            d.statlayoutdict["currenthp"]
             ]
     currentsheet = d.sheet.values()
-    skillinfo,lv,exp,unspent,stats = currentsheet.batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
+    skillinfo,lv,exp,unspent,stats,currenthp = currentsheet.batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
     skillinfo = skillinfo['values']
     try:
         lv = int(lv['values'][0][0])
@@ -635,6 +636,10 @@ async def levelup(interaction: discord.Interaction):
         unspent = int(unspent['values'][0][0])
     except KeyError: #if unspent points are blank, assume there are none.
         unspent = 0
+    try:
+        currenthp = int(currenthp['values'][0][0])
+    except KeyError: #if current HP is blank, assume it's full.
+        currenthp = d.hp(int(stats['values'][0][1]))
 
     # Now that we've retrieved the values, start parsing skills for levelup requirements
     if exp >= lv:
@@ -680,6 +685,7 @@ async def levelup(interaction: discord.Interaction):
         button_view.cha = int(cha)
         button_view.unspent = int(unspent)
         button_view.token = token
+        button_view.currenthp = currenthp
 
         private = True
 
@@ -697,4 +703,55 @@ async def levelup(interaction: discord.Interaction):
     if message == "" and button_view == embed == None: #If there's nothing to do,
         message = "You're already leveled up; nothing to do!"
         private = True
-    await interaction.response.send_message(message,view=button_view,embed=embed,ephemeral=private) 
+    await interaction.response.send_message(message,view=button_view,embed=embed,ephemeral=private)
+
+@d.tree.command()
+async def adjust_hp(interaction: discord.Interaction, amount: int, private: bool=False):
+    """
+    Adjust your character's remaining hit points.
+    
+    Parameters
+    ----------
+    amount: int
+        Value (positive or negative) by which to adjust your current HP.
+    private: bool
+        Hide your roll and result from other users. (Default: False) 
+    """
+    global users,guilds
+
+    if amount == 0: #You said explicitly to adjust by 0? why would you do that
+        await interaction.response.send_message("Very funny.",ephemeral=True)
+    
+    message = d.retrievevalue(d.statlayoutdict["name"],retrieveMcToken(interaction.guild_id,interaction.user,guilds,users)) 
+   
+    currenthp,maxhp = None,None #placeholder
+
+    if amount < 0: 
+        message += " gained **"
+    elif amount > 0:
+        message += " lost **"
+    message += str(abs(amount))+"** HP and now has **"+currenthp+"/"+maxhp+"** remaining."
+    pass
+
+@d.tree.command()
+async def end_encounter(interaction: discord.Interaction, pips: int=0):
+    """
+    [GM Command] End the current encounter, giving players the opportunity to claim pips and level up.
+
+    Parameters
+    ----------
+    pips: int
+        The number of pips to grant for the encounter. (Default: 0)
+    """
+    global users,guilds
+
+    message = "Encounter won! You've earned **"+pips+"** experience pips."
+    
+    button_view = d.endEncounter()
+    button_view.original_message = message
+    button_view.pips = pips
+    button_view.parentInter = interaction
+    button_view.users = users
+    button_view.guilds = guilds
+
+    message += " Click below to start leveling up."
