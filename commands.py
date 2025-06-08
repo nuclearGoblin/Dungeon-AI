@@ -54,94 +54,23 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
     """
     button_view = None #unless defined
     global users,guilds
-    rollname = "Rolling `1d20"
-    mod = 0 #"mod" is the numeric modifier. "modifier" is the string we are parsing.
-    if modifier != "":
-        modifier = modifier.lower() #set case to all lower to prevent case-sensitivity
-        modifier = "".join(modifier.split()) #strip all extra whitespace.
-        rollname = rollname+"+"+modifier
-        if not re.search(r"\b[+-]?((\d+)|([a-z]\w*))?([+-]((\d+)|([a-z]\w*)))*$",modifier):
-            await interaction.response.send_message(
-                "`modifier` argument format not recognized. "
-                + "Please follow the format `skillname+statname+X`,"
-                + "ex `coolness+charisma-13`.",ephemeral=True)
-            return 1
-        #Get modifier
-        mode = [sym for sym in modifier if sym == "+" or sym == "-"]
-        if modifier[0] not in  "+-": #If it's not going to be picked up here,
-            mode.insert(0,"+")  #Then it was a positive value and should be added."
-        if re.search("[+-]",modifier):
-            print("presplit",modifier)
-            modifier=re.split("[+-]",modifier)
-            print("postsplit",modifier)
-        if type(modifier) is not list:
-            modifier = [modifier] #if modifier is a single value, make it a one-item list
-        token = d.retrieveMcToken(str(interaction.guild.id),interaction.user.id,guilds,users)
-        for i,entry in enumerate(modifier):
-            if entry.isdigit(): #If the value is a number,
-                mod += d.signed(int(entry),mode[i])
-            else: #Should I make this a function since I'm gonna copy-paste it?
-                modalias = d.check_alias(entry)
-                #print("entry",entry,"had alias",modalias,"which has type",type(modalias))
-                if type(modalias) is str: #if the entry has an alias,
-                    toadd = d.retrievevalue(d.statlayoutdict[modalias],token)
-                elif token is None: #assume we're looking for a skill, but we don't have a character
-                    await interaction.response.send_message(
-                            "You appear to have selected a skill name, "
-                            + "but you have no default character sheet for me to check. "
-                            + "Please either set a default character sheet using `/link` "
-                            + "or double-check your roll syntax.",ephemeral=True)
 
-                else: #assume it's a skill
-                    toadd,skillrow = d.getSkillInfo(entry,token)
-                    rank = toadd
-                    skillname = entry
-                if toadd == "HTTP_ERROR":
-                    mod = "HTTP_ERROR"
-                    break #Stop calculating it and tell them to do it themselves.
-                else: 
-                    mod += d.signed(int(toadd),mode[i])
-            
-    #Generate a result
-    result = np.random.randint(1,20)
-    #Generate a string representing the dice rolled
-    resultstring = str(result)
-    rollname = rollname+"`! Result: ["+resultstring+"]"
-    if mod>0:
-        rollname = rollname+" + "+str(mod)
-    elif mod<0:
-        rollname = rollname+" - "+str(abs(mod))
-    result += mod
-    rollname = rollname+" = **"+str(result)
-    if goal is not None:
-        rollname += "** vs **"+str(goal)    
-        if mod == "HTTP_ERROR":
-            rollname += ". There was an error connecting to Google Sheets when retrieving modifiers. "
-            rollname += "Please manually calculate your roll. "
-        else:
-            if result >= goal: 
-                rollname += " (Success!)"
-            else: 
-                rollname += " (Failure...)"
-    rollname = rollname+"**." #end bold
-    try: #If a skill was rolled, we will look at experience.
-        skillname
-        if not d.readonlytest(token):
-            if autoexp: #automatically add to sheet
-                expmsg = d.giveExp(skillrow,rank,token,skillname)
-                rollname += " "+expmsg 
-            else:
-                button_view = d.expButton() #pass values to button class
-                button_view.token = token
-                button_view.skillrow = skillrow
-                button_view.skillrank = rank
-                button_view.skillname = skillname
-                button_view.message = rollname+" "
-                button_view.parentInter = interaction
-        else:
-            rollname += " Don't forget to update your skill experience."
-    except UnboundLocalError: #skillname is undefined, so we weren't rolling a skill
-        pass
+    parsed_mod = d.mod_parser(modifier,goal,autoexp,interaction,guilds,users)
+    if parsed_mod == 1:
+        await interaction.response.send_message(
+            "`modifier` argument format not recognized. "
+            + "Please follow the format `skillname+statname+X`,"
+            + "ex `coolness+charisma-13`.",ephemeral=True)
+        return 1
+    elif parsed_mod == 2:
+        await interaction.response.send_message(
+            "You appear to have selected a skill name, "
+            + "but you have no default character sheet for me to check. "
+            + "Please either set a default character sheet using `/link` "
+            + "or double-check your roll syntax.",ephemeral=True)
+        return 1
+    _,rollname,skillname,skillrow,rank,token,_,button_view = parsed_mod
+
     await interaction.response.send_message(rollname,ephemeral=private,view=button_view)
 
 #Character sheet linking
@@ -821,5 +750,37 @@ async def end_encounter(interaction: discord.Interaction, pips: int=0):
     button_view.parentInter = interaction
     button_view.users = users
     button_view.guilds = guilds
+
+    await interaction.response.send_message(message,view=button_view)
+
+@d.tree.command()
+async def request(interaction: discord.Interaction, modifier: str, message: str="", goal: int=None, autoexp: bool=True):
+    """
+    [GM Command] Request the specified roll from players.
+
+    Parameters
+    ----------
+    modifier: str
+        A modifier, following `/roll` syntax, for the roll.
+    message: str
+        The message for the roll, to help players know what the roll is for. (Optional)
+    goal: int
+        Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
+    autoexp: bool
+        Automatically grant exp for the roll, if applicable. (Default: True)
+    """
+    global users,guilds
+
+    if message != "":
+        message = "> "+message+"\n"
+    message += "Requested roll: **1d20+"+modifier+"**"
+
+    button_view = d.requestRoll()
+    button_view.message = message
+    button_view.mod = modifier
+    button_view.guilds = guilds
+    button_view.users = users
+    button_view.goal = goal
+    button_view.auto = autoexp
 
     await interaction.response.send_message(message,view=button_view)

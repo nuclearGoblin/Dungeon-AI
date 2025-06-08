@@ -1,5 +1,5 @@
 #Imports
-import discord, json, os
+import discord, json, os, re
 import sqlite3 as sql
 import numpy as np
 from dotenv import load_dotenv
@@ -337,6 +337,93 @@ def getHpForEmbed(view: discord.ui.View,token: str):
         #Because in this instance if I assume they have no HP they just insta-die.
         current = maxhp
     return dr,current,maxhp,name
+
+## The roll function! this is a big one
+def mod_parser(modifier,goal,autoexp,interaction,guilds,users):
+    #Set up things to return
+    rollname = "Rolling `1d20"
+    mod = 0
+    skillname = None
+    skillrow = None
+    rank = None
+    token = None
+    button_view = None
+    #Parse the modifier and search for the token
+    if modifier != "":
+        modifier = modifier.lower() #prevent case-sensitivity
+        modifier = "".join(modifier.split()) #strip extra whitespace  
+        rollname += "+"+modifier
+        if not re.search(r"\b[+-]?((\d+)|([a-z]\w*))?([+-]((\d+)|([a-z]\w*)))*$",modifier):
+            return 1 
+        mode = [sym for sym in modifier if sym in "+-"]
+        if modifier[0] not in "+-": #If it's not picked up here,
+            mode.insert(0,"+")      #It's a positive leading value.
+        if re.search("[+-]",modifier):
+            modifier=re.split("[+-]",modifier)
+        if type(modifier) is not list:
+            modifier = [modifier] #if modifier is a single value, make it a one-item list
+        token = retrieveMcToken(str(interaction.guild_id),interaction.user.id,guilds,users)
+        for i,entry in enumerate(modifier):
+            if entry.isdigit(): #If the value is a number,
+                mod += signed(int(entry),mode[i])
+            else:
+                modalias = check_alias(entry)
+                if type(modalias) is str:
+                    toadd = d.retrievevalue(statlayoutdict[modalias],token)
+                elif token is None:
+                    return 2
+                else:
+                    toadd,skillrow = getSkillInfo(entry,token)
+                    rank = toadd
+                    skillname = entry
+                if toadd == "HTTP_ERROR":
+                    mod = "HTTP_ERROR"
+                    break #Stop calculating it and tell them to do it themselves
+                else: 
+                    mod += signed(int(toadd),mode[i])
+    #Generate a d20 roll
+    result = np.random.randint(1,20)
+    #Generate a string representing the dice rolled
+    resultstring = str(result)
+    rollname = rollname+"`! Result: ["+resultstring+"]"
+    if mod>0:
+        rollname = rollname+" + "+str(mod)
+    elif mod<0:
+        rollname = rollname+" - "+str(abs(mod))
+    result += mod
+    rollname = rollname+" = **"+str(result)
+    if goal is not None:
+        rollname += "** vs **"+str(goal)    
+        if mod == "HTTP_ERROR":
+            rollname += ". There was an error connecting to Google Sheets when retrieving modifiers. "
+            rollname += "Please manually calculate your roll. "
+        else:
+            if result >= goal: 
+                rollname += " (Success!)"
+            else: 
+                rollname += " (Failure...)"
+    rollname = rollname+"**." #end bold
+
+    try: #If a skill was rolled, we will look at experience.
+        if not readonlytest(token):
+            if autoexp:
+                expmsg = giveExp(skillrow,rank,token,skillname) #assigns message while processing
+                rollname += " "+expmsg
+            else:
+                button_view = expButton()
+                button_view.token = token
+                button_view.skillrow = skillrow
+                button_view.skillrank = rank
+                button_view.skillname = skillname
+                button_view.message = rollname+" "
+                button_view.parentInter = interaction
+        else:
+            rollname += " Don't forget to update your skill experience." 
+    except UnboundLocalError: #skillname is undefined, so we weren't rolling a skill
+        pass
+            
+    #Give all the values back now
+    return mod,rollname,skillname,skillrow,rank,token,result,button_view
 
 #####################
 # Classes ###########
@@ -702,3 +789,18 @@ class takeHealing(discord.ui.View):
         #Update sheet and respond to button
         sheet.values().update(spreadsheetId=token,range=statlayoutdict["currenthp"],valueInputOption="USER_ENTERED",body={'values':[[current]]}).execute()
         await interaction.response.defer()
+
+
+class requestRoll(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+        self.mod = ""
+        self.guilds = None
+        self.users = None
+        self.message = ""
+        self.goal = 0
+        self.auto = True
+
+    @discord.ui.button(label="Roll",style=discord.ButtonStyle.primary)
+    async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
+        pass
