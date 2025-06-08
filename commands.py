@@ -706,32 +706,100 @@ async def levelup(interaction: discord.Interaction):
     await interaction.response.send_message(message,view=button_view,embed=embed,ephemeral=private)
 
 @d.tree.command()
-async def adjust_hp(interaction: discord.Interaction, amount: int, private: bool=False):
+async def damage(interaction: discord.Interaction, amount: int, bypass: bool=False, name: str=""):
     """
-    Adjust your character's remaining hit points.
+    [GM Utility] Create a button for dealing damage.
     
     Parameters
     ----------
     amount: int
-        Value (positive or negative) by which to adjust your current HP.
-    private: bool
-        Hide your roll and result from other users. (Default: False) 
+        Amount of damage to deal.
+    bypass: bool
+        Whether or not the damage should bypass DR. (Default: false)
+    name: str
+        Name of the entity dealing damage. (Optional)
     """
+    #Set up some variables
     global users,guilds
+    message = ""
 
-    if amount == 0: #You said explicitly to adjust by 0? why would you do that
-        await interaction.response.send_message("Very funny.",ephemeral=True)
+    amount = abs(amount)
+    if amount <= 0: #You said explicitly to adjust by 0? why would you do that
+        await interaction.response.send_message("'"+str(amount)+" damage'? Very funny.",ephemeral=True)
+        return 1
+
+    if name != "":
+        message = name+" deals "
+    message += str(amount)+" damage!"
+    if bypass:
+        message = message[:-1]+", bypassing DR!"
     
-    message = d.retrievevalue(d.statlayoutdict["name"],retrieveMcToken(interaction.guild_id,interaction.user,guilds,users)) 
-   
-    currenthp,maxhp = None,None #placeholder
+    button_view = d.takeDamage()
+    button_view.message = message 
+    button_view.damage = amount
+    button_view.parentInter = interaction
+    button_view.users = users
+    button_view.guilds = guilds    
+    button_view.bypass = bypass
 
-    if amount < 0: 
-        message += " gained **"
-    elif amount > 0:
-        message += " lost **"
-    message += str(abs(amount))+"** HP and now has **"+currenthp+"/"+maxhp+"** remaining."
-    pass
+    await interaction.response.send_message(message,view=button_view)
+
+@d.tree.command()
+async def heal(interaction: discord.Interaction, amount: int, selfheal: bool=False, name: str=""):
+    """
+    Assign healing.
+    
+    Parameters
+    ----------
+    amount: int
+        Amount of damage to heal.
+    selfheal: bool
+        Whether or not the healing should be applied to self. If not, creates a button. Default: False
+    name: str
+        Name of the entity giving healing. (Optional)
+    """
+    #Set up some variables
+    global users,guilds
+    message = ""
+
+    amount = abs(amount)
+    if amount <= 0: #You said explicitly to adjust by 0? why would you do that
+        await interaction.response.send_message("'"+str(amount)+" healing'? Very funny.",ephemeral=True)
+        return 1
+    if name != "":
+        message = name+" gives "
+    message += str(amount)+" HP of healing!"
+    if selfheal:
+        message = message[:-1]+" to you!"
+   
+    token = d.retrieveMcToken(str(interaction.guild_id),interaction.user.id,guilds,users)
+
+    button_view = d.takeHealing()
+    button_view.message = message 
+    button_view.damage = amount
+    button_view.parentInter = interaction
+    button_view.users = users
+    button_view.guilds = guilds    
+
+    if selfheal:        
+        retrieve = [d.statlayoutdict["currenthp"],
+                d.statlayoutdict["hpmax"],
+                ]
+        current,maxhp=d.sheet.values().batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
+        #Get values 
+        maxhp = int(maxhp['values'][0][0])
+        try: 
+            current = int(current['values'][0][0])    
+        except KeyError: #if current hp is missing, assume it's full.
+            #Yes, this behavior differs from the levelup function
+            #Because in combat if I assume they have no HP they'd be dead!
+            current = maxhp
+        current += amount
+        current = min(current,maxhp) #overheals not allowed
+        d.sheet.values().update(spreadsheetId=token,range=d.statlayoutdict["currenthp"],valueInputOption="USER_ENTERED",body={'values':[[current]]}).execute()
+        await interaction.response.send_message(message,ephemeral=True) 
+    else:
+        await interaction.response.send_message(message,view=button_view)
 
 @d.tree.command()
 async def end_encounter(interaction: discord.Interaction, pips: int=0):

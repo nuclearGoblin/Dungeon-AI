@@ -305,6 +305,39 @@ def update_embed(self):
     editembed['description'] = "Points remaining: "+str(self.unspent)
     return discord.Embed.from_dict(editembed)
 
+def hp_color(frac: float):
+    if frac == 0:
+        return 0x000000
+    else:
+        return discord.Color.from_rgb(int(255*(1-frac)),int(255*frac),0)
+
+def getHpFromEmbed(view: discord.ui.View,interaction): #Microfunction to reduce copying
+    loc = view.clickedby.index(interaction.user)
+    embed = view.embeds[loc]
+    current = int(embed.footer.text.split("/")[0].split(" ")[1])
+    return loc,embed,current
+
+def getHpForEmbed(view: discord.ui.View,token: str):
+    retrieve = [statlayoutdict["dr"],
+                statlayoutdict["currenthp"],
+                statlayoutdict["hpmax"],
+                statlayoutdict["name"]]
+    dr,current,maxhp,name=sheet.values().batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
+            #These are auto-calculated so they should be auto-filled
+    dr = int(dr['values'][0][0])
+    maxhp = int(maxhp['values'][0][0])
+    try:
+        name = name['values'][0][0]
+    except KeyError: #if name is blank, use placeholder
+        name = "Untitled Character"
+    try: 
+        current = int(current['values'][0][0])
+    except KeyError: #if current hp is missing, assume it's full.
+        #Yes, this behavior differs from the levelup function
+        #Because in this instance if I assume they have no HP they just insta-die.
+        current = maxhp
+    return dr,current,maxhp,name
+
 #####################
 # Classes ###########
 #####################
@@ -554,7 +587,6 @@ class endEncounter(discord.ui.View):
         self.parentInter = None
         self.guilds = None
         self.users = None
-        self.ctx = None
         #Track who clicked the button to prevent silly exp farming 
         self.clickedby = []
 
@@ -575,3 +607,98 @@ class endEncounter(discord.ui.View):
                                 body={'values':[[exp]],'range':statlayoutdict["experience"], 'majorDimension':'ROWS'},
                                 valueInputOption = 'USER_ENTERED').execute()
             await interaction.response.defer()
+
+class takeDamage(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+        self.damage = 0
+        self.message = ""
+        self.parentInter = None
+        self.guilds = None
+        self.users = None
+        self.embed = None
+        self.bypass = False
+        #Allow undo by re-pressing.
+        self.clickedby = []
+        self.embeds = []
+
+    @discord.ui.button(label="Take damage",style=discord.ButtonStyle.danger)
+    async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
+        #Get character sheet
+        token = retrieveMcToken(str(interaction.guild_id),interaction.user.id,self.guilds,self.users)
+        if interaction.user in self.clickedby:
+            #Figure out relevant parameters
+            loc,embed,current=getHpFromEmbed(self,interaction)
+            current += int(embed.fields[0].value) #Add back the taken damage.
+            #Remove user from damage taken list
+            self.embeds.pop(loc)
+            self.clickedby.pop(loc)
+            #Apply changes to character sheet
+            #Update original message
+            await self.parentInter.edit_original_response(content=self.message,view=self,embeds=self.embeds)
+        else:
+            #Get values
+            dr,current,maxhp,name = getHpForEmbed(self,token)
+            if not self.bypass:
+                self.damage -= dr
+                self.damage = max(self.damage,0)
+            current -= self.damage
+            current = max(0,current) #hp below 0 is game over -- dead is dead!
+
+            self.embeds.append(discord.Embed(title=name,description=interaction.user.mention,color=hp_color(current/maxhp)))
+            self.clickedby.append(interaction.user)
+
+            self.embeds[-1].add_field(name="Taken:",value=self.damage)
+            self.embeds[-1].set_footer(text="Remaining: "+str(current)+"/"+str(maxhp))
+
+            #Respond
+            await self.parentInter.edit_original_response(content=self.message,view=self,embeds=self.embeds)
+        #Update sheet and respond to button
+        sheet.values().update(spreadsheetId=token,range=statlayoutdict["currenthp"],valueInputOption="USER_ENTERED",body={'values':[[current]]}).execute()
+        await interaction.response.defer()
+
+class takeHealing(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+        self.damage = 0
+        self.message = ""
+        self.parentInter = None
+        self.guilds = None
+        self.users = None
+        self.embed = None
+        #Allow undo by re-pressing.
+        self.clickedby = []
+        self.embeds = []
+        
+
+    @discord.ui.button(label="Receive healing",style=discord.ButtonStyle.success)
+    async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
+        #Get character sheet
+        token = retrieveMcToken(str(interaction.guild_id),interaction.user.id,self.guilds,self.users)
+        if interaction.user in self.clickedby:
+            #Figure out relevant parameters
+            loc,embed,current=getHpFromEmbed(self,interaction)
+            current -= int(embed.fields[0].value) #Subtract the healing back out. sorry!
+            current = max(current,0)
+            #Remove user from damage taken list
+            self.embeds.pop(loc)
+            self.clickedby.pop(loc)
+            #Apply changes to character sheet
+            #Update original message
+            await self.parentInter.edit_original_response(content=self.message,view=self,embeds=self.embeds)
+        else:
+            #Get values
+            _,current,maxhp,name = getHpForEmbed(self,token)
+            current += self.damage
+            current = min(current,maxhp) #overhealing bad
+            self.embeds.append(discord.Embed(title=name,description=interaction.user.mention,color=hp_color(current/maxhp)))
+            self.clickedby.append(interaction.user)
+
+            self.embeds[-1].add_field(name="Received:",value=self.damage)
+            self.embeds[-1].set_footer(text="Remaining: "+str(current)+"/"+str(maxhp))
+
+            #Respond
+            await self.parentInter.edit_original_response(content=self.message,view=self,embeds=self.embeds)
+        #Update sheet and respond to button
+        sheet.values().update(spreadsheetId=token,range=statlayoutdict["currenthp"],valueInputOption="USER_ENTERED",body={'values':[[current]]}).execute()
+        await interaction.response.defer()
