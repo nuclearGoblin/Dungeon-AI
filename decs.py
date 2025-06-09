@@ -800,7 +800,40 @@ class requestRoll(discord.ui.View):
         self.message = ""
         self.goal = 0
         self.auto = True
+        #Don't let the same user reroll repeatedly.
+        self.clickedby = []
+        self.embed = discord.Embed(title="Rolled by:")
+        self.success = []
 
     @discord.ui.button(label="Roll",style=discord.ButtonStyle.primary)
     async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
-        pass
+        if interaction.user in self.clickedby:
+            pass #You don't get to roll twice nerd!
+        else:
+            self.clickedby.append(interaction.user)
+            
+            parsed_mod = d.mod_parser(modifier,goal,self.auto,interaction,self.guilds,self.users)
+            if parsed_mod == 1:
+                await parentInter.edit_original_response(content=
+                    "`modifier` argument format not recognized. "
+                    + "Please follow the format `skillname+statname+X`,"
+                    + "ex `coolness+charisma-13`.")
+                break #Stop the else statement here
+            elif parsed_mod == 2:
+                result = "No character selected!"
+                self.success.append(False)
+            else:
+                mod,_,skillname,skillrow,rank,token,result,_ = parsed_mod
+                if result >= goal:
+                    self.success.append(True)
+                else:
+                    self.success.append(False)
+                result = str(result) + " ("+str(result-mod)+"+"+str(mod)+")"`
+            if self.success[-1]:
+                result = "✔️ "+result
+            else:
+                result = "❌ "+result
+            embed.add_field(name=interaction.user.name,value=result,inline=False)
+            embed.set_color(hp_color(len(self.success == True)/len(self.success)))
+            await parentInter.edit_original_response(content=message,view=self,embed=self.embed)
+        await interaction.response.defer(hp_)

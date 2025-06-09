@@ -36,7 +36,7 @@ async def help(interaction: discord.Interaction):
 
 #Basic die rolls.
 @d.tree.command()
-async def roll(interaction: discord.Interaction, modifier: str="", goal: int=None, autoexp: bool=False, private: bool=False):
+async def roll(interaction: discord.Interaction, modifier: str="", goal: int=None, exp: bool=False, private: bool=False):
     """
     Rolls 1d20 with provided modifiers. Default modifier: 0.
 
@@ -47,7 +47,7 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
     goal: int
         Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
     autoexp: bool
-        Automatically grant exp for the roll, if applicable.
+        Automatically grant exp for attempting the roll, if applicable. (Default: False)
     private: bool
         Hide your roll and result from other users. (Default: False)
     ----------
@@ -520,7 +520,6 @@ async def unlink(interaction: discord.Interaction, char: str):
 # - this is a feature I see other functions using so make it its own function
 #skillroll (roll the associated skill+modifiers, this is the main function we want)
 # - functions within this will be called by skillroll
-#requestroll (be able to request players click a button and roll a thing.)
 #configure (bot settings per server, maybe uses a third table, things like who can view sheets and request rolls.)
 
 #### Encounter commands ####
@@ -754,7 +753,7 @@ async def end_encounter(interaction: discord.Interaction, pips: int=0):
     await interaction.response.send_message(message,view=button_view)
 
 @d.tree.command()
-async def request(interaction: discord.Interaction, modifier: str, message: str="", goal: int=None, autoexp: bool=True):
+async def request(interaction: discord.Interaction, modifier: str, goal: int, message: str="", exp: bool=True):
     """
     [GM Command] Request the specified roll from players.
 
@@ -762,18 +761,18 @@ async def request(interaction: discord.Interaction, modifier: str, message: str=
     ----------
     modifier: str
         A modifier, following `/roll` syntax, for the roll.
+    goal: int
+        Value to meet or exceed when rolling. This is not relayed in the resulting message.
     message: str
         The message for the roll, to help players know what the roll is for. (Optional)
-    goal: int
-        Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
-    autoexp: bool
-        Automatically grant exp for the roll, if applicable. (Default: True)
+    exp: bool
+        Automatically grant exp for attempting the roll, if applicable. (Default: True)
     """
     global users,guilds
 
     if message != "":
         message = "> "+message+"\n"
-    message += "Requested roll: **1d20+"+modifier+"**"
+    message += "Requested roll: **"+modifier+"**"
 
     button_view = d.requestRoll()
     button_view.message = message
