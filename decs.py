@@ -753,6 +753,7 @@ class takeHealing(discord.ui.View):
         self.guilds = None
         self.users = None
         self.embed = None
+        self.overheal = False
         #Allow undo by re-pressing.
         self.clickedby = []
         self.embeds = []
@@ -766,7 +767,8 @@ class takeHealing(discord.ui.View):
             #Figure out relevant parameters
             loc,embed,current=getHpFromEmbed(self,interaction)
             current -= int(embed.fields[0].value) #Subtract the healing back out. sorry!
-            current = max(current,0)
+            if not overheal:
+                current = max(current,0)
             #Remove user from damage taken list
             self.embeds.pop(loc)
             self.clickedby.pop(loc)

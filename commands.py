@@ -673,7 +673,7 @@ async def damage(interaction: discord.Interaction, amount: int, bypass: bool=Fal
     await interaction.response.send_message(message,view=button_view)
 
 @d.tree.command()
-async def heal(interaction: discord.Interaction, amount: int, selfheal: bool=False, name: str=""):
+async def heal(interaction: discord.Interaction, amount: int, overheal: bool=False, selfheal: bool=False, name: str=""):
     """
     Assign healing.
     
@@ -681,8 +681,10 @@ async def heal(interaction: discord.Interaction, amount: int, selfheal: bool=Fal
     ----------
     amount: int
         Amount of damage to heal.
+    overheal: bool
+        Whether or not the healing should be able to give the target additional HP beyond their maximum. (Default: False)
     selfheal: bool
-        Whether or not the healing should be applied to self. If not, creates a button. Default: False
+        Whether or not the healing should be applied to self. If not, creates a button. (Default: False)
     name: str
         Name of the entity giving healing. (Optional)
     """
@@ -706,6 +708,7 @@ async def heal(interaction: discord.Interaction, amount: int, selfheal: bool=Fal
     button_view.message = message 
     button_view.damage = amount
     button_view.parentInter = interaction
+    button_view.overheal = overheal
     button_view.users = users
     button_view.guilds = guilds    
 
