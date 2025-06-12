@@ -66,4 +66,7 @@ class MobAttackButtons(discord.ui.View,Mob):
             for child in self.children: #Once this is pressed, disable the buttons.
                 if type(child) is discord.ui.Button:
                     child.disabled = True
+        #Get default sheets of everyone involved
+        for player in self.passing.join(self.responding):
+            
         await interaction.response.defer()
