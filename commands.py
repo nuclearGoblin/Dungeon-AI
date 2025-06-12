@@ -30,8 +30,12 @@ async def help(interaction: discord.Interaction):
     embed.add_field(name="help",value="Prints this help menu.",inline=False)
     embed.add_field(name="roll [dice] [goal] [autoexp] [private]",value="Rolls a die.",inline=False)
     embed.add_field(name="link <url> [default] [allguilds]",value="Link a character sheet to your user.",inline=False)
-    embed.add_field(name="view [char]",value="View the character sheets that you've linked.",inline=False)
     embed.add_field(name="unlink <char>",value="Unlink characters from yourself.",inline=False)
+    embed.add_field(name="view [char]",value="View the character sheets that you've linked.",inline=False)
+    embed.add_field(name="heal <amount> [overheal] [selfheal] [name]",value="Restore HP (button or self)")
+    embed.add_field(name="damage <amount> [bypass] [name]",value="(GM) Create button for receiving damage.")
+    embed.add_field(name="end_encounter [pips]",value="(GM) Give out pips and prompt level up.")
+    embed.add_field(name="request [modifier] [goal] [message] [exp]",value="(GM) Request a roll")
     await interaction.response.send_message(embed=embed,ephemeral=True)
 
 #Basic die rolls.
@@ -783,6 +787,7 @@ async def request(interaction: discord.Interaction, modifier: str, goal: int, me
     button_view.guilds = guilds
     button_view.users = users
     button_view.goal = goal
-    button_view.auto = autoexp
+    button_view.auto = exp
+    button_view.parentInter = interaction
 
     await interaction.response.send_message(message,view=button_view)
