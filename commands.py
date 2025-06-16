@@ -33,20 +33,22 @@ async def help(interaction: discord.Interaction):
     embed.add_field(name="link <url> [default] [allguilds]",value="Link a character sheet to your user.",inline=False)
     embed.add_field(name="unlink <char>",value="Unlink characters from yourself.",inline=False)
     embed.add_field(name="view [char]",value="View the character sheets that you've linked.",inline=False)
-    embed.add_field(name="heal <amount> [overheal] [selfheal] [name]",value="Restore HP (button or self)")
+    embed.add_field(name="heal <amount> [overheal] [selfheal] [name]",value="Restore HP (button or self).")
     embed.add_field(name="damage <amount> [bypass] [name]",value="(GM) Create button for receiving damage.")
+    embed.add_field(name="mob_attack <name> [attack]",value="(GM) Declare a mob attack.")
+    embed.add_field(name="request [modifier] [goal] [message] [exp]",value="(GM) Request a roll.")
     embed.add_field(name="end_encounter [pips]",value="(GM) Give out pips and prompt level up.")
-    embed.add_field(name="request [modifier] [goal] [message] [exp]",value="(GM) Request a roll")
-    embed.add_field(name="bestiary [mob] [private]",value="(GM) View bestiary entries")
+    embed.add_field(name="bestiary [mob] [private]",value="(GM) View bestiary entries.")
     await interaction.response.send_message(embed=embed,ephemeral=True)
 
 #Basic die rolls.
 @d.tree.command()
-async def roll(interaction: discord.Interaction, modifier: str="", goal: int=None, exp: bool=False, private: bool=False):
+async def roll(interaction: discord.Interaction, modifier: str="", goal: int=-1337, exp: bool=False, private: bool=False):
     """
     Rolls 1d20 with provided modifiers. Default modifier: 0.
 
     Parameters
+    ----------
     modifier: str
         String representing modifier, in format `X+skill+stat+Y`. (Default: 0. Example: `coolness+charisma+8`)
         Calls your default character if non-numeric values are provided.
@@ -56,7 +58,20 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
         Automatically grant exp for attempting the roll, if applicable. (Default: False)
     private: bool
         Hide your roll and result from other users. (Default: False)
-    ----------
+
+    Returns
+    -------
+      | **help:** Prints this help menu.
+      | **roll [dice] [goal] [autoexp] [private]:** Rolls a die.
+      | **link <url> [default] [allguilds]:** Link a character sheet to your user.
+      | **unlink <char>:** Unlink characters from yourself.
+      | **view [char]:** View the character sheets that you've linked.
+      | **heal <amount> [overheal] [selfheal] [name]:** Restore HP (button or self).
+      | **damage <amount> [bypass] [name]:** (GM) Create button for receiving damage.
+      | **mob_attack <name> [attack]:** (GM) Declare a mob attack.
+      | **mob_attack <name> [attack]:** (GM) Request a roll.
+      | **end_encounter [pips]:** (GM) Give out pips and prompt level up.
+      | **bestiary [mob] [private]:** (GM) View bestiary entries.
     """
     button_view = None #unless defined
     global users,guilds
@@ -85,17 +100,20 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
 ) #moved to docstring
 async def link(interaction: discord.Interaction, url: str="", default: bool=True, allguilds: bool=False):
     """
-    Links a character sheet to your user on this server. If already linked, modifies link settings.
+    [Player Utility] Links a character sheet to your user on this server. If already linked, modifies link settings.
 
     Parameters
     ----------
     url: str
-    
-    print("users:",users)The URL or token of your character sheet. (Required)
+        The URL or token of your character sheet. (Required)
     default: bool
         Set the character sheet as your default character sheet for the current server. (Default: True)
     allguilds: bool
         Make this character sheet accessible from all Discord servers you are in (Default: False)
+
+    Returns
+    -------
+    Message indicating the character ID, guild association status, and default status.
     """
     #Want to make sure we are updating the global var.
     global users,guilds#,chars
@@ -275,12 +293,16 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
 #)
 async def view(interaction: discord.Interaction, char: str="guild"):
     """
-    View a list of your characters.
+    [Player Utility] View a list of your characters.
 
     Parameters
     ----------
     char: str
         "'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
+
+    Returns
+    -------
+    A table of the requested character IDs and their associations.
     """
     
     print("view ++++++++++++++++++++")
@@ -380,12 +402,16 @@ async def view(interaction: discord.Interaction, char: str="guild"):
 ) 
 async def unlink(interaction: discord.Interaction, char: str):
     """
-    Unlink one or more characters from yourself.
+    [Player Utility] Unlink one or more characters from yourself.
 
     Parameters
     ----------
     char: str
         'all', 'guild', a character ID, or a comma-separated list of IDs. (Required)
+
+    Returns
+    -------
+    Message indicating successfully removed data and data that was requested to be moved but was not present.
     """
     global users,guilds
     userdel = False
@@ -533,7 +559,11 @@ async def unlink(interaction: discord.Interaction, char: str):
 @d.tree.command()
 async def levelup(interaction: discord.Interaction):
     """
-    Scan for current exp on your current default character sheet and rank/level up as appropriate.
+    [Player Utility] Scan for current exp on your current default character sheet and rank/level up as appropriate.
+
+    Returns
+    -------
+    A levelup report with stat adjustment buttons, if applicable.
     """
 
     global users,guilds
@@ -649,9 +679,13 @@ async def damage(interaction: discord.Interaction, amount: int, bypass: bool=Fal
     amount: int
         Amount of damage to deal.
     bypass: bool
-        Whether or not the damage should bypass DR. (Default: false)
+        Whether or not the damage should bypass DR. (Default: False)
     name: str
         Name of the entity dealing damage. (Optional)
+
+    Returns
+    -------
+    A button that, when clicked, assigns damage to the character of the player who clicked it.
     """
     #Set up some variables
     global users,guilds
@@ -668,10 +702,9 @@ async def damage(interaction: discord.Interaction, amount: int, bypass: bool=Fal
     if bypass:
         message = message[:-1]+", bypassing DR!"
     
-    button_view = d.takeDamage()
+    button_view = d.takeDamage(interaction)
     button_view.message = message 
     button_view.damage = amount
-    button_view.parentInter = interaction
     button_view.users = users
     button_view.guilds = guilds    
     button_view.bypass = bypass
@@ -681,7 +714,7 @@ async def damage(interaction: discord.Interaction, amount: int, bypass: bool=Fal
 @d.tree.command()
 async def heal(interaction: discord.Interaction, amount: int, overheal: bool=False, selfheal: bool=False, name: str=""):
     """
-    Assign healing.
+    Applies healing.
     
     Parameters
     ----------
@@ -693,6 +726,10 @@ async def heal(interaction: discord.Interaction, amount: int, overheal: bool=Fal
         Whether or not the healing should be applied to self. If not, creates a button. (Default: False)
     name: str
         Name of the entity giving healing. (Optional)
+
+    Returns
+    -------
+    A button (if selfhealing not requested) for healing and reports of all healing applied.
     """
     #Set up some variables
     global users,guilds
@@ -747,6 +784,10 @@ async def end_encounter(interaction: discord.Interaction, pips: int=0):
     ----------
     pips: int
         The number of pips to grant for the encounter. (Default: 0)
+
+    Return
+    ------
+    A button (if selfhealing not requested) for healing and reports of all healing applied.
     """
     global users,guilds
 
@@ -776,6 +817,10 @@ async def request(interaction: discord.Interaction, modifier: str, goal: int, me
         The message for the roll, to help players know what the roll is for. (Optional)
     exp: bool
         Automatically grant exp for attempting the roll, if applicable. (Default: True)
+
+    Returns
+    -------
+    A button that rolls as specified.
     """
     global users,guilds
 
@@ -802,9 +847,13 @@ async def bestiary(interaction: discord.Interaction, mob: str="", private: bool=
     Parameters
     ----------
     mob: str
-        The creature you want to see the stats for. If blank, returns a list of creatures. (Default: None)
+        The creature you want to see the stats for. If unspecified, returns a list of creatures. (Optional)
     private: bool
         Whether or not the resulting message should be hidden from other users. (Default: True)
+
+    Returns
+    -------
+    Bestiary information.
     """
 
     if mob == "":
@@ -826,6 +875,40 @@ async def mob_attack(interaction: discord.Interaction, mob: str, attack: str="")
     mob: str
         Name of the creature you want to attack with.
     attack: str
-        Number (1-3) or name of the attack you want to use. If blank, uses the first attack in the creature's attack list. (Default: None)
+        Number (1-3) or name of the attack you want to use. If blank, uses the first attack in the creature's attack list. (Optional)
+
+    Returns
+    -------
+    Respond/Pass buttons for players and Roll button for GM.
     """
-        
+    global users,guilds
+
+    button_view = m.MobAttackButtons(interaction)
+    button_view.guilds = guilds
+    button_view.users = users
+    button_view.attack = attack
+    button_view.mob = mob
+    #Get mob info
+    mob_inst = m.get_mob(mob)
+    if mob_inst == []: #If the mob doesn't exist, give up and report failure
+        await interaction.response.send_message(content="Mob `"+mob+"` not found.",embed=m.mobs,ephemeral=True)
+        return 1
+    button_view.attack_inst = mob_inst[0].attacks
+    if attack == "": #If not specified, default to the first.
+        button_view.attack_inst = button_view.attack_inst[0]
+    else: #If specified,
+        try: #first see if it's positional.
+            button_view.attack_inst = button_view.attack_inst[int(attack)-1]
+        except (IndexError,ValueError) as e: #If you can't call it as a position,
+            #Look the attack up by name
+            button_view.attack_inst = [x for x in button_view.attack_inst if x['name'].lower().strip() == attack.lower().strip()]
+            #If you didn't find anything,
+            if button_view.attack_inst == []: #Give up and report the failure.
+                await interaction.response.send_message(content="Attack `"+attack+"` for creature `"+mob+"` not found.",embed=m.desc(mob_inst[0]),ephemeral=True)
+                return 2
+            button_view.attack_inst = button_view.attack_inst[0]
+
+    #Define the message to send
+    button_view.message = mob.capitalize()+" is attacking with "+button_view.attack_inst['name']+"!"
+
+    await interaction.response.send_message(button_view.message,view=button_view,embed=button_view.embed)

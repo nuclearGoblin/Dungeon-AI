@@ -210,13 +210,13 @@ def retrieveMcToken(guildID: str,userID,guilds,users):
     #First, check if current guild has an assigned main character for the user.
     gRow = guilds.loc[guilds['userID'] == userID]
     if gRow.empty:
-        return None
+        return ""
     mcIDs = strtolist(gRow.iloc[0]["mainCharIDs"])
     gIDs = strtolist(gRow.iloc[0]["guildIDs"])
     try:
         gloc = gIDs.index(guildID)
     except ValueError: #The player doesn't have anything in this guild at all
-        return None
+        return ""
     if mcIDs[gloc] is not None: #There is a default character for the current guild
         return mcIDs[gloc]
     #There is no default character for the current guild specifically
@@ -225,17 +225,19 @@ def retrieveMcToken(guildID: str,userID,guilds,users):
     for i,x in enumerate(uRow["guildAssociations"]):
         if guildID in x: #If the sheet is associated with the guild,
             associated.append(i) #Append its ID to the list
-            if len(associated) > 1: return None #If there are too many, give up
+            if len(associated) > 1: 
+                return "" #If there are too many, give up
     if len(associated) == 1: #If we found a valid character,
         return uRow["charIDs"].values[associated[0]]#Return the character ID found
     for i,x in enumerate(uRow["guildAssociations"]): #No specific associations,
         if "all" in x and associated == []: #So check for "all"
             associated.append(i)
-            if len(associated) > 1: return None #Again, too many; give up.
+            if len(associated) > 1: 
+                return "" #Again, too many; give up.
     if len(associated) == 1:
         return uRow["charIDs"].values[associated[0]] #Return the character ID found
     #We never found anything. too bad.
-    return None
+    return ""
         
 def getSkillInfo(skillname,token):
     #for reference
@@ -308,6 +310,8 @@ def update_embed(self):
 def hp_color(frac: float):
     if frac == 0:
         return 0x000000
+    elif frac > 1:
+        return 0xFFFFFF
     else:
         return discord.Color.from_rgb(int(255*(1-frac)),int(255*frac),0)
 
@@ -317,15 +321,19 @@ def getHpFromEmbed(view: discord.ui.View,interaction): #Microfunction to reduce 
     current = int(embed.footer.text.split("/")[0].split(" ")[1])
     return loc,embed,current
 
-def getHpForEmbed(view: discord.ui.View,token: str):
+def getHpForEmbed(token: str):
     retrieve = [statlayoutdict["dr"],
                 statlayoutdict["currenthp"],
                 statlayoutdict["hpmax"],
-                statlayoutdict["name"]]
-    dr,current,maxhp,name=sheet.values().batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
+                statlayoutdict["name"],
+                statlayoutdict["evasion"]]
+    if token == "":
+        return 0,0,0,"Character not found",0
+    dr,current,maxhp,name,evasion=sheet.values().batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
             #These are auto-calculated so they should be auto-filled
     dr = int(dr['values'][0][0])
     maxhp = int(maxhp['values'][0][0])
+    evasion = int(evasion['values'][0][0])
     try:
         name = name['values'][0][0]
     except KeyError: #if name is blank, use placeholder
@@ -336,7 +344,7 @@ def getHpForEmbed(view: discord.ui.View,token: str):
         #Yes, this behavior differs from the levelup function
         #Because in this instance if I assume they have no HP they just insta-die.
         current = maxhp
-    return dr,current,maxhp,name
+    return dr,current,maxhp,name,evasion
 
 ## The roll function! this is a big one
 def mod_parser(modifier,goal,autoexp,interaction,guilds,users):
@@ -370,7 +378,7 @@ def mod_parser(modifier,goal,autoexp,interaction,guilds,users):
                 modalias = check_alias(entry)
                 if type(modalias) is str:
                     toadd = d.retrievevalue(statlayoutdict[modalias],token)
-                elif token is None:
+                elif token == "":
                     return 2
                 else:
                     toadd,skillrow = getSkillInfo(entry,token)
@@ -392,7 +400,7 @@ def mod_parser(modifier,goal,autoexp,interaction,guilds,users):
         rollname = rollname+" - "+str(abs(mod))
     result += mod
     rollname = rollname+" = **"+str(result)
-    if goal is not None:
+    if goal != -1337: #This is my "None" magic number
         rollname += "** vs **"+str(goal)    
         if mod == "HTTP_ERROR":
             rollname += ". There was an error connecting to Google Sheets when retrieving modifiers. "
@@ -428,12 +436,12 @@ def mod_parser(modifier,goal,autoexp,interaction,guilds,users):
 def reconstruct_response_lists(embed,responding,passing):
     txt = ""
     for user in responding:
-        txt += user.ping+", "
-    embed.set_field_at(0,name="Responding",value=txt[-1])
+        txt += user.mention+", "
+    embed.set_field_at(0,name="Responding",value=txt[:-2])
     txt = ""
     for user in passing:
-        txt += user.ping+", "
-    embed.set_field_at(1,name="Passing",value=txt[-1],inline=False)
+        txt += user.mention+", "
+    embed.set_field_at(1,name="Passing",value=txt[:-2],inline=False)
 
 #####################
 # Classes ###########
@@ -706,15 +714,16 @@ class endEncounter(discord.ui.View):
             await interaction.response.defer()
 
 class takeDamage(discord.ui.View):
-    def __init__(self):
+    def __init__(self,parentInter):
         super().__init__()
         self.damage = 0
         self.message = ""
-        self.parentInter = None
+        self.parentInter = parentInter
         self.guilds = None
         self.users = None
         self.embed = None
         self.bypass = False
+        self.whitelist = [] #list of entities allowed to press button
         #Allow undo by re-pressing.
         self.clickedby = []
         self.embeds = []
@@ -722,6 +731,9 @@ class takeDamage(discord.ui.View):
     @discord.ui.button(label="Take damage",style=discord.ButtonStyle.danger)
     async def click(self, interaction: discord.Interaction, button:discord.ui.Button):
         #Get character sheet
+        if self.whitelist != [] and interaction.user not in self.whitelist:
+            await interaction.response.defer()
+            return 0
         token = retrieveMcToken(str(interaction.guild_id),interaction.user.id,self.guilds,self.users)
         if interaction.user in self.clickedby:
             #Figure out relevant parameters
@@ -735,23 +747,30 @@ class takeDamage(discord.ui.View):
             await self.parentInter.edit_original_response(content=self.message,view=self,embeds=self.embeds)
         else:
             #Get values
-            dr,current,maxhp,name = getHpForEmbed(self,token)
+            dr,current,maxhp,name,_ = getHpForEmbed(token)
+            damage = self.damage #make a copy of self.damage; otherwise defending dr stacks!
             if not self.bypass:
-                self.damage -= dr
-                self.damage = max(self.damage,0)
-            current -= self.damage
+                damage -= dr
+                damage = max(damage,0)
+            current -= damage
             current = max(0,current) #hp below 0 is game over -- dead is dead!
 
-            self.embeds.append(discord.Embed(title=name,description=interaction.user.mention,color=hp_color(current/maxhp)))
+            #Get color for embed based on health
+            if maxhp == 0: 
+                color = 0
+            else:
+                color = hp_color(current/maxhp)
+            self.embeds.append(discord.Embed(title=name,description=interaction.user.mention,color=color))
             self.clickedby.append(interaction.user)
 
-            self.embeds[-1].add_field(name="Taken:",value=self.damage)
-            self.embeds[-1].set_footer(text="Remaining: "+str(current)+"/"+str(maxhp))
+            self.embeds[-1].add_field(name="Taken",value=damage)
+            self.embeds[-1].set_footer(text="Remaining "+str(current)+"/"+str(maxhp),icon_url="https://img.itch.zone/aW1nLzcwNjA0MzcuZ2lm/original/bM2174.gif")
 
             #Respond
             await self.parentInter.edit_original_response(content=self.message,view=self,embeds=self.embeds)
         #Update sheet and respond to button
-        sheet.values().update(spreadsheetId=token,range=statlayoutdict["currenthp"],valueInputOption="USER_ENTERED",body={'values':[[current]]}).execute()
+        if token != "":
+            sheet.values().update(spreadsheetId=token,range=statlayoutdict["currenthp"],valueInputOption="USER_ENTERED",body={'values':[[current]]}).execute()
         await interaction.response.defer()
 
 class takeHealing(discord.ui.View):
@@ -794,7 +813,7 @@ class takeHealing(discord.ui.View):
             self.clickedby.append(interaction.user)
 
             self.embeds[-1].add_field(name="Received:",value=self.damage)
-            self.embeds[-1].set_footer(text="Remaining: "+str(current)+"/"+str(maxhp))
+            self.embeds[-1].set_footer(text="Remaining: "+str(current)+"/"+str(maxhp),icon_url="https://flippurgatory.itch.io/animated-potion-assets-pack-free")
 
             #Respond
             await self.parentInter.edit_original_response(content=self.message,view=self,embeds=self.embeds)

@@ -16,7 +16,7 @@ class Mob():
         self.mobtype = "Enemy"
         self.classification = ""
         self.text = ""
-        self.attacks = [{"name":"","mod":0,"damage":0}]
+        self.attacks = [{"name":"","mod":0,"damage":0,"bypass":False}] #bypass: bypass dr or no
         self.perfloor = 0
         self.image = ""
         self.flavor = ""
@@ -49,7 +49,7 @@ classifications = {
         }
 
 #All the valid types
-type = ['Enemy','NPC','Elite','Crawler','Pet','Boss','Minion','God','Corpse']
+types = ['Enemy','NPC','Elite','Crawler','Pet','Boss','Minion','God','Corpse']
 
 #A small function that finds mob by name
 def get_mob(mob: str):
@@ -60,9 +60,14 @@ class MobAttackButtons(discord.ui.View,Mob):
     def __init__(self,parentInter):
         super().__init__()
 
-        self.embed = discord.Embed()
+        self.embed = discord.Embed() #For initial message
         self.passing = []
         self.responding = []
+        self.drs = []
+        self.names = []
+        self.maxhps = []
+        self.hps = []
+        self.tokens = []
         #To pass in
         self.parentInter = parentInter 
         self.message = ""
@@ -70,6 +75,7 @@ class MobAttackButtons(discord.ui.View,Mob):
         self.users = None
         self.attack = ""
         self.mob = ""
+        self.attack_inst = {}
 
         self.embed.add_field(name="Responding",value="")
         self.embed.add_field(name="Passed",value="",inline=False)
@@ -82,7 +88,8 @@ class MobAttackButtons(discord.ui.View,Mob):
             for child in self.children: #Can't roll until done!
                 if (type(child) is discord.ui.Button) and child.label == "Roll":
                     child.disabled = False
-            self.passing.remove(interaction.user)
+            if interaction.user in self.passing: #Remove from other list if applicable
+                self.passing.remove(interaction.user)
             self.responding.append(interaction.user)
             d.reconstruct_response_lists(self.embed,self.responding,self.passing)
             await self.parentInter.edit_original_response(content=self.message,view=self,embed=self.embed)
@@ -97,56 +104,90 @@ class MobAttackButtons(discord.ui.View,Mob):
                 if (type(child) is discord.ui.Button) and child.label == "Roll":
                     child.disabled = False
             self.passing.append(interaction.user)
-            self.responding.remove(interaction.user)
+            if interaction.user in self.responding: #Remove from other list if applicable.
+                self.responding.remove(interaction.user)
 
             d.reconstruct_response_lists(self.embed,self.responding,self.passing)
             await self.parentInter.edit_original_response(content=self.message,view=self,embed=self.embed)
         await interaction.response.defer()
 
-    #The roll button for the GM
+    #The roll button for the GM #############3
     @discord.ui.button(label="Roll",style=discord.ButtonStyle.primary,disabled=True)
     async def roll_button(self, interaction: discord.Interaction, button:discord.ui.Button):
         if interaction.user != self.parentInter.user:
             pass #If a player tries to roll, do nothing.
         else: #If the GM rolls,
-            for child in self.children: #Once this is pressed, disable the buttons.
-                if type(child) is discord.ui.Button:
-                    child.disabled = True
+            damage_button = d.takeDamage(interaction) #replace the buttons with a damage button
+            damage_button.clickedby = [0] #set up a dummy entry to prevent positioning issues
             #Get mob information
-            mob_inst = get_mob(self.mob)
-            if mob_inst == []: #If the mob doesn't exist, give up and report failure
-                await self.parentInter.edit_original_response(content="Mob `"+self.mob+"` not found.",embed=mobs)
-                await interaction.response.defer()
-                return 1
-            attack_inst = get_mob(self.mob).attacks
-            if self.attack == "": #If not specified, default to the first.
-                attack_inst = attack_inst[0]
-            else: #If specified,
-                try: #first see if it's positional.
-                    attack_inst = attack_inst[int(self.attack)]
-                except ValueError: #If you can't call it as a position,
-                    #Look the attack up by name
-                    attack_inst = [x for x in attack_inst if x['name'].lower().strip() == self.attack.lower().strip()][0]
-                    #If you didn't find anything,
-                    if attack_inst == []: #Give up and report the failure.
-                        await self.parentInter.edit_original_response(content="Attack `"+self.attack+"` for creature `"+self.mob+"` not found.",embed=desc(mob_inst[0]))
-                        await interaction.response.defer()
-                        return 2
             #Now that we know the attack, we can roll it.
-            result = np.random.randint(1,20) + attack_inst['mod']
+            result = np.random.randint(1,20) + self.attack_inst['mod']
+            #We also know the appropriate damage amount.
+            damage_button.damage = self.attack_inst['damage']
             #Get defender info
             players = self.passing + self.responding
-            evasions = []
             hits = []
-            for player in players:
+            evasions = []
+            for player in players: #For each player,
+                #Get the token,
                 token = d.retrieveMcToken(str(interaction.guild_id),player.id,self.guilds,self.users)
-                evasion = d.retrievevalue(token,d.statlayoutdict['Evasion'])
-                evasions.append(evasion)
-                if evasion < result:
-                    hits.append(player)
+                self.tokens.append(token)
+                #Find their evasion
+                dr,current,maxhp,name,evasion = d.getHpForEmbed(token)
+                self.drs.append(dr)
+                self.hps.append(current)
+                self.maxhps.append(maxhp)
+                self.names.append(name)
+                evasions.append(evasion) #Track this for reporting later
+                if evasion < result: #If they were hit,
+                    hits.append(player) #Write that down
+                    if player in self.passing: #If they passed, deal damage automatically
+                        damage_button.clickedby.append(player)
+            #Generate message describing who got hit
+            damage_button.embeds.append(discord.Embed(title=self.attack_inst['name'],
+                                                      colour=d.hp_color(1-len(hits)/len(players)),description=str(self.attack_inst['damage'])+" damage")) 
+            hitstext = "" #Initialize strings to fill
+            misstext = ""
+            for i,player in enumerate(players):
+                if player in hits:
                     if player in self.passing:
-                        pass 
-            
+                        #Finish processing player damage
+                        hitstext += "**"+self.names[i]+"** ("+player.mention+", Evasion "+str(evasions[i])+"), "
+                        #Calculate damage to deal
+                        damage = self.attack_inst['damage']
+                        if not self.attack_inst['bypass']: #Ssubtract dr from damage, to a minimum of 0
+                            print(self.drs[i])
+                            damage -= self.drs[i]
+                            damage = max(damage,0)
+                        #Subtract damage from hp
+                        self.hps[i] -= damage
+                        self.hps[i] = max(0,self.hps[i]) #hp below 0 is game over -- dead is dead!
+                        d.sheet.values().update(spreadsheetId=self.tokens[i],range=d.statlayoutdict["currenthp"],valueInputOption="USER_ENTERED",body={'values':[[self.hps[i]]]}).execute()
+                        #And report back that this was already done
+                        damage_button.embeds.append(discord.Embed(title=self.names[i],description=interaction.user.mention,colour=d.hp_color(self.hps[i]/self.maxhps[i])))
+                        damage_button.embeds[-1].add_field(name="Taken",value=damage)
+                        damage_button.embeds[-1].set_footer(text="Remaining "+str(self.hps[i])+"/"+str(self.maxhps[i]))
+
+                    else: #If player didn't pass, don't do anything for them -- may have missed
+                        hitstext += self.names[i]+" ("+player.mention+", Evasion "+str(evasions[i])+"), "
+                else: #If the player was missed,
+                    misstext += self.names[i]+" ("+player.mention+", Evasion "+str(evasions[i])+"), "
+            damage_button.embeds[0].set_author(name=self.mob.capitalize())
+            damage_button.embeds[0].set_footer(text="Rolled: "+str(result),icon_url="https://static.vecteezy.com/system/resources/previews/020/910/995/non_2x/dice-d20-icon-design-free-vector.jpg")
+            damage_button.embeds[0].add_field(name="Hit",inline=False,value=hitstext[:-2])
+            damage_button.embeds[0].add_field(name="Missed",inline=False,value=misstext[:-2])
+            #Pass in other necessary values
+            damage_button.damage = self.attack_inst['damage']
+            damage_button.guilds = self.guilds
+            damage_button.users = self.users
+            damage_button.bypass = self.attack_inst['bypass']
+
+            #And respond
+            if hitstext == "": #If no one was hit, no damage button
+                await self.parentInter.edit_original_response(content="",embed=damage_button.embeds[0],view=None)
+            else:
+                await self.parentInter.edit_original_response(content="",view=damage_button,embeds=damage_button.embeds)
+        #And respond to button
         await interaction.response.defer()
 
 #Return a bestiary page
@@ -183,7 +224,8 @@ def desc(creature: Mob):
 runenote = Mob("Runic Note")
 runenote.classification = "Undead"
 runenote.text = "Special rules text here"
-runenote.attacks[0] = {'name':"Sing",'mod':0,'damage':4}
+runenote.attacks[0] = {'name':"Sing",'mod':10,'damage':4,'bypass':False}
+runenote.attacks.append({'name':"Sing louder",'mod':5,'damage':2,'bypass':True})
 runenote.flavor = "Runesong"
 
 # A list of all creatures, for utility of other fucntions
