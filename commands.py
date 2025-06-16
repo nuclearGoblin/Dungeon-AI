@@ -10,6 +10,7 @@ import googleapiclient.errors
 import numpy as np
 import pandas as pd
 import decs as d
+import mobs as m
 #from decs import *
 from table2ascii import table2ascii as t2a
 
@@ -36,6 +37,7 @@ async def help(interaction: discord.Interaction):
     embed.add_field(name="damage <amount> [bypass] [name]",value="(GM) Create button for receiving damage.")
     embed.add_field(name="end_encounter [pips]",value="(GM) Give out pips and prompt level up.")
     embed.add_field(name="request [modifier] [goal] [message] [exp]",value="(GM) Request a roll")
+    embed.add_field(name="bestiary [mob] [private]",value="(GM) View bestiary entries")
     await interaction.response.send_message(embed=embed,ephemeral=True)
 
 #Basic die rolls.
@@ -791,3 +793,39 @@ async def request(interaction: discord.Interaction, modifier: str, goal: int, me
     button_view.parentInter = interaction
 
     await interaction.response.send_message(message,view=button_view)
+
+@d.tree.command()
+async def bestiary(interaction: discord.Interaction, mob: str="", private: bool=True):
+    """
+    [GM Command] Print a bestiary page, or a table of contents.
+
+    Parameters
+    ----------
+    mob: str
+        The creature you want to see the stats for. If blank, returns a list of creatures. (Default: None)
+    private: bool
+        Whether or not the resulting message should be hidden from other users. (Default: True)
+    """
+
+    if mob == "":
+       await interaction.response.send_message("",embed=m.mobs,ephemeral=private)
+    else: #Find the mob requested, case insensitive with trailing whitespace tolerance
+        mob_inst = m.get_mob(mob)
+        if mob_inst == []:
+            await interaction.response.send_message("Requested mob `"+mob+"` not found.",embed=m.mobs,ephemeral=True)
+        else:
+            await interaction.response.send_message("",embed=m.desc(mob_inst[0]))
+
+@d.tree.command()
+async def mob_attack(interaction: discord.Interaction, mob: str, attack: str=""):
+    """
+    [GM Command] Make a mob attack, allowing for player responses.
+
+    Parameters
+    ----------
+    mob: str
+        Name of the creature you want to attack with.
+    attack: str
+        Number (1-3) or name of the attack you want to use. If blank, uses the first attack in the creature's attack list. (Default: None)
+    """
+        

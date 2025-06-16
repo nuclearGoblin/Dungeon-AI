@@ -812,7 +812,7 @@ class requestRoll(discord.ui.View):
         self.message = ""
         self.goal = 0
         self.auto = True
-        self.parentInter = None
+        self.parentInter = discord.Interaction(data=None,state=None)
         #Don't let the same user reroll repeatedly.
         self.clickedby = []
         self.embed = discord.Embed(title="Rolled by:")
@@ -827,7 +827,7 @@ class requestRoll(discord.ui.View):
             
             parsed_mod = mod_parser(self.mod,self.goal,self.auto,interaction,self.guilds,self.users)
             if parsed_mod == 1:
-                await parentInter.edit_original_response(content=
+                await self.parentInter.edit_original_response(content=
                     "`modifier` argument format not recognized. "
                     + "Please follow the format `skillname+statname+X`,"
                     + "ex `coolness+charisma-13`.")
@@ -837,7 +837,7 @@ class requestRoll(discord.ui.View):
                 result = "No character selected!"
                 self.success.append(False)
             else:
-                mod,_,skillname,skillrow,rank,token,result,_ = parsed_mod
+                mod,_,_,_,_,_,result,_ = parsed_mod
                 if result >= self.goal:
                     self.success.append(True)
                 else:
