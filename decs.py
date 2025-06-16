@@ -428,11 +428,11 @@ def mod_parser(modifier,goal,autoexp,interaction,guilds,users):
 def reconstruct_response_lists(embed,responding,passing):
     txt = ""
     for user in responding:
-        txt += user.display_name+", "
+        txt += user.ping+", "
     embed.set_field_at(0,name="Responding",value=txt[-1])
     txt = ""
     for user in passing:
-        txt += user.display_name+", "
+        txt += user.ping+", "
     embed.set_field_at(1,name="Passing",value=txt[-1],inline=False)
 
 #####################
