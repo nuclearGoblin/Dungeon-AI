@@ -842,12 +842,12 @@ class requestRoll(discord.ui.View):
                     self.success.append(True)
                 else:
                     self.success.append(False)
-                result = str(result) + " ("+str(result-mod)+"+"+str(mod)+")"
+                result = "**" + str(result) + "** = ["+str(result-mod)+"]+"+str(mod)
             if self.success[-1]:
                 result = "✔️ "+result
             else:
                 result = "❌ "+result
-            self.embed.add_field(name=interaction.user.name,value=result,inline=False)
+            self.embed.add_field(name=interaction.user.display_name,value=result,inline=False)
             #Shuffle around to change color
             self.embed = self.embed.to_dict()
             self.embed['color'] = int(hp_color(self.success.count(True)/len(self.success)))
