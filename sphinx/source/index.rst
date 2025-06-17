@@ -56,9 +56,9 @@ Below are DungeonAI's general-use commands (for both players and GMs). The bot r
 
   :return: A button (if selfhealing not requested) for healing and reports of all healing applied.
 
-.. image:: no_overheal.png
+..image:: no_overheal.png
 
-.. image:: overheal.png
+..image:: overheal.png
 
 .. 
    _help:
@@ -85,7 +85,7 @@ Below are DungeonAI's general-use commands (for both players and GMs). The bot r
       | **bestiary [mob] [private]:** (GM) View bestiary entries.
       | """
 
-.. image:: help.png
+..image:: help.png
    
 .. 
    _roll:
@@ -229,8 +229,9 @@ Below are additional commands intended for GM use.
 
    :return: A button that, when clicked, assigns damage to the character of the player who clicked it.
 
-.. image:: damage_normal.png
-.. image:: damage_bypass.png
+..image:: damage_normal.png
+
+..image:: damage_bypass.png
 
 ..
   _end_encounter
