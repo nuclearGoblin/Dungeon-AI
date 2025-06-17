@@ -45,5 +45,6 @@ jobs:
         sphinx-build -M markdown sphinx/source sphinx/build
         mkdir .github/wiki
         mv sphinx/build/markdown/index.md .github/wiki/Home.md
+        cp sphinx/source/*.png .github/wiki/
     - name: Upload docs
       uses: spenserblack/actions-wiki@v0.3.0
