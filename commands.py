@@ -10,6 +10,7 @@ import googleapiclient.errors
 import numpy as np
 import pandas as pd
 import decs as d
+import mobs as m
 #from decs import *
 from table2ascii import table2ascii as t2a
 
@@ -25,122 +26,77 @@ guilds = pd.read_sql("SELECT "+", ".join(d.guildCols)+" FROM guilds",d.connectio
 async def help(interaction: discord.Interaction):
     """
     Lists available commands.
+    
+    Returns
+    -------
+      | **help:** Prints this help menu.
+      | **roll [dice] [goal] [autoexp] [private]:** Rolls a die.
+      | **link <url> [default] [allguilds]:** Link a character sheet to your user.
+      | **unlink <char>:** Unlink characters from yourself.
+      | **view [char]:** View the character sheets that you've linked.
+      | **heal <amount> [overheal] [selfheal] [name]:** Restore HP (button or self).
+      | **damage <amount> [bypass] [name]:** (GM) Create button for receiving damage.
+      | **mob_attack <name> [attack]:** (GM) Declare a mob attack.
+      | **mob_attack <name> [attack]:** (GM) Request a roll.
+      | **end_encounter [pips]:** (GM) Give out pips and prompt level up.
+      | **bestiary [mob] [private]:** (GM) View bestiary entries.
     """
     embed = discord.Embed(title="Commands")
     embed.add_field(name="help",value="Prints this help menu.",inline=False)
-    embed.add_field(name="roll [dice] [goal] [autoexp] [private]",value="Rolls a die.",inline=False)
-    embed.add_field(name="link <url> [default] [allguilds]",value="Link a character sheet to your user.",inline=False)
+    embed.add_field(name="roll [dice] [goal] [autoexp] [private]",value="Rolls a die.")
+    embed.add_field(name="mob_attack <name> [attack]",value="(GM) Declare and roll a mob attack.")
+    embed.add_field(name="request [modifier] [goal] [message] [exp]",value="(GM) Request a roll.",inline=False)
+    embed.add_field(name="link <url> [default] [allguilds]",value="Link a character sheet to your user.")
+    embed.add_field(name="unlink <char>",value="Unlink characters from yourself.")
     embed.add_field(name="view [char]",value="View the character sheets that you've linked.",inline=False)
-    embed.add_field(name="unlink <char>",value="Unlink characters from yourself.",inline=False)
+    embed.add_field(name="heal <amount> [overheal] [selfheal] [name]",value="Restore HP (button or self).",inline=False)
+    embed.add_field(name="damage <amount> [bypass] [name]",value="(GM) Create button for receiving damage.",inline=False)
+    embed.add_field(name="level_up",value="Check over your character and level up if applicable.")
+    embed.add_field(name="end_encounter [pips]",value="(GM) Give out pips and prompt level up.")
+    embed.add_field(name="bestiary [mob] [private]",value="(GM) View bestiary entries.",inline=False)
     await interaction.response.send_message(embed=embed,ephemeral=True)
 
 #Basic die rolls.
 @d.tree.command()
-async def roll(interaction: discord.Interaction, modifier: str="", goal: int=None, autoexp: bool=False, private: bool=False):
+async def roll(interaction: discord.Interaction, modifier: str="", goal: int=-1337, exp: bool=False, private: bool=False):
     """
     Rolls 1d20 with provided modifiers. Default modifier: 0.
 
     Parameters
+    ----------
     modifier: str
         String representing modifier, in format `X+skill+stat+Y`. (Default: 0. Example: `coolness+charisma+8`)
         Calls your default character if non-numeric values are provided.
     goal: int
         Value to meet or exceed when rolling. Reports back success/failure if given. (Optional)
     autoexp: bool
-        Automatically grant exp for the roll, if applicable.
+        Automatically grant exp for attempting the roll, if applicable. (Default: False)
     private: bool
         Hide your roll and result from other users. (Default: False)
-    ----------
+
+    Returns
+    -------
+    Rolled value with information about modifier and success, as well as button for exp if it wasn't assigned.
     """
     button_view = None #unless defined
     global users,guilds
-    rollname = "Rolling `1d20"
-    mod = 0 #"mod" is the numeric modifier. "modifier" is the string we are parsing.
-    if modifier != "":
-        modifier = modifier.lower() #set case to all lower to prevent case-sensitivity
-        modifier = "".join(modifier.split()) #strip all extra whitespace.
-        rollname = rollname+"+"+modifier
-        if not re.search(r"\b[+-]?((\d+)|([a-z]\w*))?([+-]((\d+)|([a-z]\w*)))*$",modifier):
-            await interaction.response.send_message(
-                "`modifier` argument format not recognized. "
-                + "Please follow the format `skillname+statname+X`,"
-                + "ex `coolness+charisma-13`.",ephemeral=True)
-            return 1
-        #Get modifier
-        mode = [sym for sym in modifier if sym == "+" or sym == "-"]
-        if modifier[0] not in  "+-": #If it's not going to be picked up here,
-            mode.insert(0,"+")  #Then it was a positive value and should be added."
-        if re.search("[+-]",modifier):
-            print("presplit",modifier)
-            modifier=re.split("[+-]",modifier)
-            print("postsplit",modifier)
-        if type(modifier) is not list:
-            modifier = [modifier] #if modifier is a single value, make it a one-item list
-        token = d.retrieveMcToken(str(interaction.guild.id),interaction.user.id,guilds,users)
-        for i,entry in enumerate(modifier):
-            if entry.isdigit(): #If the value is a number,
-                mod += d.signed(int(entry),mode[i])
-            else: #Should I make this a function since I'm gonna copy-paste it?
-                modalias = d.check_alias(entry)
-                #print("entry",entry,"had alias",modalias,"which has type",type(modalias))
-                if type(modalias) is str: #if the entry has an alias,
-                    toadd = d.retrievevalue(d.statlayoutdict[modalias],token)
-                elif token is None: #assume we're looking for a skill, but we don't have a character
-                    await interaction.response.send_message(
-                            "You appear to have selected a skill name, "
-                            + "but you have no default character sheet for me to check. "
-                            + "Please either set a default character sheet using /link "
-                            + "or double-check your roll syntax.",ephemeral=True)
 
-                else: #assume it's a skill
-                    print(token)
-                    toadd,skillrow = d.getSkillInfo(entry,token)
-                    rank = toadd
-                    skillname = entry
-                if toadd == "HTTP_ERROR":
-                    mod = "HTTP_ERROR"
-                    break #Stop calculating it and tell them to do it themselves.
-                else: 
-                    mod += d.signed(int(toadd),mode[i])
-            
-    #Generate a result
-    result = np.random.randint(1,20)
-    #Generate a string representing the dice rolled
-    resultstring = str(result)
-    rollname = rollname+"`! Result: ["+resultstring+"]"
-    if mod>0:
-        rollname = rollname+" + "+str(mod)
-    elif mod<0:
-        rollname = rollname+" - "+str(abs(mod))
-    result += mod
-    rollname = rollname+" = **"+str(result)
-    if goal is not None:
-        rollname += "** vs **"+str(goal)    
-        if mod == "HTTP_ERROR":
-            rollname += ". There was an error connecting to Google Sheets when retrieving modifiers. "
-            rollname += "Please manually calculate your roll. "
-        else:
-            if result >= goal: rollname += " (Success!)"
-            else: rollname += " (Failure...)"
-    rollname = rollname+"**." #end bold
-    try: #If a skill was rolled, we will look at experience.
-        skillname
-        if not d.readonlytest(token):
-            if autoexp: #automatically add to sheet
-                expmsg = d.giveExp(skillrow,rank,token,skillname)
-                rollname += " "+expmsg 
-            else:
-                button_view = d.expButton() #pass values to button class
-                button_view.token = token
-                button_view.skillrow = skillrow
-                button_view.skillrank = rank
-                button_view.skillname = skillname
-                #view.message = rollname+" "
-                button_view.parentInter = interaction
-        else:
-            rollname += " Don't forget to update your skill experience."
-    except UnboundLocalError: #skillname is undefined, so we weren't rolling a skill
-        pass
+    parsed_mod = d.mod_parser(modifier,goal,exp,interaction,guilds,users)
+    if parsed_mod == 1:
+        await interaction.response.send_message(
+            "`modifier` argument format not recognized. "
+            + "Please follow the format `skillname+statname+X`,"
+            + "ex `coolness+charisma-13`.",ephemeral=True)
+        return 1
+    elif parsed_mod == 2:
+        await interaction.response.send_message(
+            "You appear to have selected a skill name, "
+            + "but you have no default character sheet for me to check. "
+            + "Please either set a default character sheet using `/link` "
+            + "or double-check your roll syntax.",ephemeral=True)
+        return 1
+    _,rollname,skillname,skillrow,rank,token,_,button_view = parsed_mod
+
     await interaction.response.send_message(rollname,ephemeral=private,view=button_view)
 
 #Character sheet linking
@@ -149,17 +105,20 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=Non
 ) #moved to docstring
 async def link(interaction: discord.Interaction, url: str="", default: bool=True, allguilds: bool=False):
     """
-    Links a character sheet to your user on this server. If already linked, modifies link settings.
+    [Player Utility] Links a character sheet to your user on this server. If already linked, modifies link settings.
 
     Parameters
     ----------
     url: str
-    
-    print("users:",users)The URL or token of your character sheet. (Required)
+        The URL or token of your character sheet. (Required)
     default: bool
         Set the character sheet as your default character sheet for the current server. (Default: True)
     allguilds: bool
         Make this character sheet accessible from all Discord servers you are in (Default: False)
+
+    Returns
+    -------
+    Message indicating the character ID, guild association status, and default status.
     """
     #Want to make sure we are updating the global var.
     global users,guilds#,chars
@@ -167,8 +126,8 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     #Token interpretation
     if "." in url: #This is a full URL, so we need to strip it
         token = url.split("https://") #Remove this first if it's present, since we're splitting on / this would cause issues.
-        token = url.split("/") #Now split along slashes.
-        token = token[5] #Take the third entry
+        token = url.replace('?','/').split("/") #Now split along slashes and ?s
+        token = token[5] #Take the nth entry
     elif "/" in url: #I don't know how to interpret this. You left out .com but included slashes so I don't know where to start.
         await interaction.response.send_message("Unable to interpret provided url. Please either provide the full URL of your document or only the token.",ephemeral=True)
         return
@@ -202,7 +161,6 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])
         gAssoc = [d.strtolist(x) for x in gAssoc]
         gIDs = d.strtolist(gRow.iloc[0]["guildIDs"])
-        gIDs = [int(x) for x in gIDs]
         mcIDs = d.strtolist(gRow.iloc[0]["mainCharIDs"])
         roArray = d.strtolist(uRow.iloc[0]["readonly"])
     
@@ -212,7 +170,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     except googleapiclient.errors.HttpError:
         await interaction.response.send_message(
             "Unable to reach character sheet. Please make sure that it is either public or shared with the bot, whose email is: `"
-            +d.botmail+"`. If you provided a complete url, try providing only the token."
+            +d.botmail+"`. If you provided a complete url, try providing only the token. "
             +d.bugreporttext+" if that resolves the issue."
         )
         return
@@ -226,10 +184,8 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         pos = cIDs.index(token)
         #See if the token is already associated with this guild and allguild and default statuses are not changing, and that the readonly status wouldn't change.
         if gAssoc[pos] not in ["all",["all"]]:
-            print(gAssoc[pos])
             gAssoc[pos] = [int(x) for x in gAssoc[pos]]
         if ((guildID in gAssoc[pos] and not allguilds) or (gAssoc[pos] == "all" and allguilds)) and readonly == (roArray[pos] == "True"):
-            #print("checking default",mcIDs[gIDs.index(guildID)],default,token in mcIDs[gIDs.index(guildID)])
             if (token in mcIDs[gIDs.index(guildID)]) == default:
                 await interaction.response.send_message("This character is already linked as described. Nothing to do!",ephemeral=True)
                 return
@@ -241,15 +197,15 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     uRow.at[0,"readonly"] = roArray
     #See if we need to add the current guild to the list of guilds.
     if guildID not in gIDs:
-        print(type(guildID))
         gIDs.append(guildID)
-        print(gIDs)
+        gRow.at[0,"guildIDs"] = gIDs
     #If this character is to be the default for this guild, we should associate them.
     if default: 
         try: #Try reassigning if exists
             mcIDs[gIDs.index(guildID)] = token
         except IndexError: #If it doesn't, create it.
             mcIDs.append(token)
+            print("mcIDs:",mcIDs)
             if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
     else:
@@ -259,6 +215,8 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             mcIDs.append(None)
             if len(mcIDs) < gIDs.index(guildID): #If we still don't have that many indices,
                 raise ValueError("Your character database is corrupted. Please copy down the information you can with `/view char:all`, clear your database with `/unlink char:all`, and recreate it. Please also [submit a bug report on our GitHub](https://github.com/nuclearGoblin/Dungeon-AI).")
+    gRow.at[0,"mainCharIDs"] = mcIDs #Update the info!
+    print("gRow[mcids]:",gRow.at[0,"mainCharIDs"])
     #Set up guild association for character.
     #If it's set to all, overwrite the array with "all"
     if allguilds: 
@@ -272,7 +230,7 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
     #If it's not set to all,
     elif len(gAssoc) <= pos: 
         gAssoc.append([guildID])
-        uRow.at[0,"guildAssociations"] = str(gAssoc)
+        uRow.at[0,"guildAssociations"] = [str(gAssoc)]
     elif guildID not in gAssoc[pos]:
         #If it was previously set to all, overwrite.
         if gAssoc[pos] == "all": 
@@ -281,10 +239,12 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
             uRow.at[0,"guildAssociations"] = assocs
         else: #Otherwise, append
             x = gAssoc[pos]
-            x.append(guildID)
-            uRow.at[0,"guildAssociations"] = x
+            x.append(int(guildID))
+            print("x",x)
+            uRow.at[0,"guildAssociations"] = [x]
     #Reformat data as necessary
-    uRow.at[0,"guildAssociations"] = str(uRow.iloc[0]["guildAssociations"])
+    uRow["guildAssociations"] = uRow["guildAssociations"].astype(str)
+    print("gA:", uRow["guildAssociations"])
     uRow["charIDs"] = uRow["charIDs"].astype("str")
     uRow["guildAssociations"] = uRow["guildAssociations"].astype("str")
     uRow["readonly"] = uRow["readonly"].astype("str")
@@ -295,15 +255,18 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         uRow.to_sql(name='users',con=d.connection,if_exists="append")
         gRow.to_sql(name='guilds',con=d.connection,if_exists="append")
     else: #Otherwise, just update the table by replacement.
+        print("uRow:\n",uRow)
         guilds.loc[guilds['userID'] == interaction.user.id] = gRow
         users.loc[users['userID'] == interaction.user.id] = uRow
         users.to_sql(name='users',con=d.connection,if_exists="replace")
         guilds.to_sql(name='guilds',con=d.connection,if_exists="replace")
     #Construct a nice pretty message.
     #name = "NAME_PLACEHOLDER"
-    message += name
-    if readonly: message += " (read only)"
-    else: message += " (writable)"
+    message += "**"+name+"**"
+    if readonly: 
+        message += " (read only)"
+    else: 
+        message += " (writable)"
     message += " with ID `"+token+"` to be associated with "
     if allguilds: message += "**all** guilds"
     else: message += "**this** guild"
@@ -330,17 +293,23 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
 #    char="'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
 #    private="Hide the message from other users in this server. (Default: True)"
 #)
-async def view(interaction: discord.Interaction, char: str="guild",private: bool=True):
+async def view(interaction: discord.Interaction, char: str="guild"):
     """
-    View a list of your characters.
+    [Player Utility] View a list of your characters.
 
     Parameters
     ----------
     char: str
         "'all', 'guild', ID,  or comma-separated list of IDs of characters you wish to view. (Default: guild)",
-    private: bool
-        Hide the message from other users in this server. (Default: True)
+
+    Returns
+    -------
+    A table of the requested character IDs and their associations.
     """
+    
+    print("view ++++++++++++++++++++")
+
+    private = True #I am forcing these to be private because it means fewer options for users to deal with.
     header = ["Name","ID","Default?","Guild(s)","Bot Access"]
     #message = "Characters found: \n =============== \n **ID | Name | default? | guild association | bot access** \n"
     guildID = str(interaction.guild.id)
@@ -362,8 +331,12 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
         #Then prune the list.
         for character in charlist:
             pos = d.strtolist(uRow.iloc[0]["charIDs"]).index(character)
+            for x in d.strtolist(uRow.iloc[0]["guildAssociations"]):
+                print(x)
             gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])[pos]
-            if type(gAssoc) == str: gAssoc = [gAssoc]
+            print(gAssoc)
+            if (type(gAssoc) == str): 
+                gAssoc = [gAssoc]
             gAssoc = d.assocformat(gAssoc)
             if int(guildID) not in gAssoc and "all" not in gAssoc: 
                 charlist.remove(character)
@@ -398,11 +371,14 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
         gIDs = d.strtolist(gRow.iloc[0]["guildIDs"])
         #default status
         try:
+            print("mcIDs:",mcIDs,"gIDs:",gIDs)
             row[2] = str(mcIDs[gIDs.index(guildID)] == character)
         except ValueError: #If it's not associated with this guild
             row[2] = "N/A"
+        except IndexError:
+            pass #TODO: add a user-oriented bug message 
         gAssoc = d.strtolist(uRow.iloc[0]["guildAssociations"])[pos]
-        if type(gAssoc) == str: 
+        if type(gAssoc) is str: 
             gAssoc = [gAssoc]
         gAssoc = d.assocformat(gAssoc)
         if len(gAssoc) > 1 and int(guildID) in gAssoc: #If there are multiple,
@@ -428,27 +404,21 @@ async def view(interaction: discord.Interaction, char: str="guild",private: bool
 ) 
 async def unlink(interaction: discord.Interaction, char: str):
     """
-    Unlink one or more characters from yourself.
+    [Player Utility] Unlink one or more characters from yourself.
 
     Parameters
     ----------
     char: str
         'all', 'guild', a character ID, or a comma-separated list of IDs. (Required)
+
+    Returns
+    -------
+    Message indicating successfully removed data and data that was requested to be moved but was not present.
     """
     global users,guilds
     userdel = False
-    if False: #non-commitally removing this, as I want to restructure.
-        if char == "all":
-            #delete everything
-            users = users[users["userID"] != interaction.user.id]
-            guilds = guilds[guilds["userID"] != interaction.user.id]
-            users.to_sql(name='users',con=d.connection,if_exists="replace")
-            guilds.to_sql(name='guilds',con=d.connection,if_exists="replace")
-            await interaction.response.send_message("All of your user data was deleted from the bot's database.",ephemeral=True)
-            #Reload edited databases.
-            users = pd.read_sql("SELECT "+", ".join(d.userCols)+" FROM users",d.connection,dtype=d.types)
-            guilds = pd.read_sql("SELECT "+", ".join(d.guildCols)+" FROM guilds",d.connection,dtype=d.types)
-            return
+    if char == "all":
+        userdel = True
     guildID = str(interaction.guild.id)
     #Pull up the existing data.
     gRow = guilds.loc[guilds['userID'] == interaction.user.id]
@@ -481,7 +451,6 @@ async def unlink(interaction: discord.Interaction, char: str):
             except ValueError: #If it's not, then there's nothing to do.
                 await interaction.response.send_message("There is no character data associated with this guild.")
                 return
-        #gIDs.pop(gloc); mcIDs.pop(gloc) #Do this at guild collection.
         gRow.at[0,"guildIDs"] = str(gIDs)
     elif char == "all":
         charlist = cIDs.copy()
@@ -534,7 +503,7 @@ async def unlink(interaction: discord.Interaction, char: str):
                 try:
                     gloc = gIDs.index(guildID)
                 except ValueError: #If it's not, then there's nothing to do.
-                    await interaction.response.send_message("There is no character data associated with the guild",guildID)
+                    await interaction.response.send_message("There is no character data associated with the guild"+guildID)
                     return
             gIDs.pop(gloc); mcIDs.pop(gloc)
             gRow.at[0,"guildIDs"] = str(gIDs)
@@ -571,8 +540,10 @@ async def unlink(interaction: discord.Interaction, char: str):
         )
     if emptyguilds: 
         message += " "+str(emptyguilds)+" guild"
-        if emptyguilds>1: message += "s no longer have"
-        else: message += " no longer has"
+        if emptyguilds>1: 
+            message += "s no longer have"
+        else: 
+            message += " no longer has"
         message += " linked characters after this."
     if userdel:
         message += " This action resulted in the removal of all of your user data."
@@ -583,5 +554,368 @@ async def unlink(interaction: discord.Interaction, char: str):
 # - this is a feature I see other functions using so make it its own function
 #skillroll (roll the associated skill+modifiers, this is the main function we want)
 # - functions within this will be called by skillroll
-#requestroll (be able to request players click a button and roll a thing.)
 #configure (bot settings per server, maybe uses a third table, things like who can view sheets and request rolls.)
+
+#### Encounter commands ####
+
+@d.tree.command()
+async def levelup(interaction: discord.Interaction):
+    """
+    [Player Utility] Scan for current exp on your current default character sheet and rank/level up as appropriate.
+
+    Returns
+    -------
+    A levelup report with stat adjustment buttons, if applicable.
+    """
+
+    global users,guilds
+    message = ""
+    button_view = None
+    embed = None
+
+    #The initial level-up message should be visible to everyone unless there are buttons, in which case it should be hidden until all operations are complete.
+    private = False
+
+    #First, pull up the default character sheet
+    token = d.retrieveMcToken(str(interaction.guild.id),interaction.user.id,guilds,users)
+
+    #Now I need to check each skill. This should be a batch job for efficiency.
+    retrieve = [d.statlayoutdict["skillinfo"],
+            d.statlayoutdict["level"],
+            d.statlayoutdict["experience"],
+            d.statlayoutdict["unspent"],
+            d.statlayoutdict["stats"],
+            d.statlayoutdict["currenthp"]
+            ]
+    currentsheet = d.sheet.values()
+    skillinfo,lv,exp,unspent,stats,currenthp = currentsheet.batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
+    skillinfo = skillinfo['values']
+    try:
+        lv = int(lv['values'][0][0])
+    except KeyError: #If level is blank, assume it's 1
+        lv = 1
+    try:
+        exp = int(exp['values'][0][0])
+    except KeyError: #if exp is blank, assume it's 0
+        exp = 0
+    try:
+        unspent = int(unspent['values'][0][0])
+    except KeyError: #if unspent points are blank, assume there are none.
+        unspent = 0
+    try:
+        currenthp = int(currenthp['values'][0][0])
+    except KeyError: #if current HP is blank, assume it's full.
+        currenthp = d.hp(int(stats['values'][0][1]))
+
+    # Now that we've retrieved the values, start parsing skills for levelup requirements
+    if exp >= lv:
+        lv += 1
+        exp = 0
+        message += "You've reached level "+str(lv)+", giving you three stat points to spend. "
+        unspent += 3 
+    dinged = []
+    for i,skill in enumerate(skillinfo): #For each skill,
+        #Convert values to integers
+        skill[-3] = int(skill[-3])
+        skill[-1] = int(skill[-1])
+        #If there's enough exp for a skill to level up, then
+        if skill[-1] > d.skillTrackTable[skill[-2]][skill[-3]]:
+            dinged.append([skill[0],skill[-3]]) #Note that the skill level increased,
+            skillinfo[i][-1] = 0                #Reset exp for the skill to 0,
+            skillinfo[i][-3] += 1               #And level up
+    if len(dinged) > 0:
+        message += "The following skills leveled up:\n"
+        for x in dinged:
+            message += "- **"+x[0]+"** "+str(x[1])+" → "+str(x[1]+1)+"\n"
+    if unspent > 0:
+        #Get stat info
+        strength,con,dex,intellect,cha = stats['values'][0]
+        #Set up embed for information about level up
+        embed = discord.Embed(title="Stat Allocation",
+                              description = "Points remaining: "+str(unspent),
+                              url="https://docs.google.com/spreadsheets/d/"+str(token)
+                              )
+        embed.add_field(name="Strength",value = strength)
+        embed.add_field(name="Constitution",value = con)
+        embed.add_field(name="Dexterity",value=dex)
+        embed.add_field(name="Intelligence",value=intellect)
+        embed.add_field(name="Charisma",value=cha)
+        #Pass things into buttons
+        button_view = d.statAllocationButtons()
+        button_view.embed = embed
+        button_view.parentInter = interaction
+        button_view.strength = int(strength)
+        button_view.con = int(con)
+        button_view.dex = int(dex)
+        button_view.intellect = int(intellect)
+        button_view.cha = int(cha)
+        button_view.unspent = int(unspent)
+        button_view.token = token
+        button_view.currenthp = currenthp
+
+        private = True
+
+    requests = {
+            'value_input_option': 'USER_ENTERED',
+            'data': [
+                {'range':d.statlayoutdict["skillinfo"],'values':skillinfo},
+                {'range':d.statlayoutdict["level"],'values':[[lv]]},
+                {'range':d.statlayoutdict["experience"],'values':[[exp]]},
+                {'range':d.statlayoutdict["unspent"],'values':[[unspent]]}
+            ]
+            }
+    currentsheet.batchUpdate(spreadsheetId=token,body=requests).execute()
+
+    if message == "" and button_view == embed == None: #If there's nothing to do,
+        message = "You're already leveled up; nothing to do!"
+        private = True
+    await interaction.response.send_message(message,view=button_view,embed=embed,ephemeral=private)
+
+@d.tree.command()
+async def damage(interaction: discord.Interaction, amount: int, bypass: bool=False, name: str=""):
+    """
+    [GM Utility] Create a button for dealing damage.
+    
+    Parameters
+    ----------
+    amount: int
+        Amount of damage to deal.
+    bypass: bool
+        Whether or not the damage should bypass DR. (Default: False)
+    name: str
+        Name of the entity dealing damage. (Optional)
+
+    Returns
+    -------
+    A button that, when clicked, assigns damage to the character of the player who clicked it.
+    """
+    #Set up some variables
+    global users,guilds
+    message = ""
+
+    amount = abs(amount)
+    if amount <= 0: #You said explicitly to adjust by 0? why would you do that
+        await interaction.response.send_message("'"+str(amount)+" damage'? Very funny.",ephemeral=True)
+        return 1
+
+    if name != "":
+        message = name+" deals "
+    message += str(amount)+" damage!"
+    if bypass:
+        message = message[:-1]+", bypassing DR!"
+    
+    button_view = d.takeDamage(interaction)
+    button_view.message = message 
+    button_view.damage = amount
+    button_view.users = users
+    button_view.guilds = guilds    
+    button_view.bypass = bypass
+
+    await interaction.response.send_message(message,view=button_view)
+
+@d.tree.command()
+async def heal(interaction: discord.Interaction, amount: int, overheal: bool=False, selfheal: bool=False, name: str=""):
+    """
+    Applies healing.
+    
+    Parameters
+    ----------
+    amount: int
+        Amount of damage to heal.
+    overheal: bool
+        Whether or not the healing should be able to give the target additional HP beyond their maximum. (Default: False)
+    selfheal: bool
+        Whether or not the healing should be applied to self. If not, creates a button. (Default: False)
+    name: str
+        Name of the entity giving healing. (Optional)
+
+    Returns
+    -------
+    A button (if selfhealing not requested) for healing and reports of all healing applied.
+    """
+    #Set up some variables
+    global users,guilds
+    message = ""
+
+    amount = abs(amount)
+    if amount <= 0: #You said explicitly to adjust by 0? why would you do that
+        await interaction.response.send_message("'"+str(amount)+" healing'? Very funny.",ephemeral=True)
+        return 1
+    if name != "":
+        message = name.capitalize()+" gives "
+    message += str(amount)+" HP of healing!"
+    if selfheal:
+        message = message[:-1]+" to you!"
+   
+    token = d.retrieveMcToken(str(interaction.guild_id),interaction.user.id,guilds,users)
+
+    button_view = d.takeHealing()
+    button_view.message = message 
+    button_view.damage = amount
+    button_view.parentInter = interaction
+    button_view.overheal = overheal
+    button_view.users = users
+    button_view.guilds = guilds    
+
+    if selfheal:        
+        retrieve = [d.statlayoutdict["currenthp"],
+                d.statlayoutdict["hpmax"],
+                ]
+        current,maxhp=d.sheet.values().batchGet(spreadsheetId=token,ranges=retrieve).execute()['valueRanges']
+        #Get values 
+        maxhp = int(maxhp['values'][0][0])
+        try: 
+            current = int(current['values'][0][0])    
+        except KeyError: #if current hp is missing, assume it's full.
+            #Yes, this behavior differs from the levelup function
+            #Because in combat if I assume they have no HP they'd be dead!
+            current = maxhp
+        #Don't reduce HP when avoiding overhealing
+        if not overheal:
+            amount = min(amount,maxhp-current) #overheals not allowed
+            amount = max(amount,0) #negative heals also not allowed!
+        current += amount
+        d.sheet.values().update(spreadsheetId=token,range=d.statlayoutdict["currenthp"],valueInputOption="USER_ENTERED",body={'values':[[current]]}).execute()
+        embed = discord.Embed(title="Healing received",description=interaction.user.mention,color=d.hp_color(current/maxhp))
+        embed.add_field(name="Received:",value=amount)
+        embed.set_footer(text="Remaining: "+str(current)+"/"+str(maxhp))
+        await interaction.response.send_message(message,ephemeral=True,embed=embed) 
+    else:
+        await interaction.response.send_message(message,view=button_view)
+
+@d.tree.command()
+async def end_encounter(interaction: discord.Interaction, pips: int=0):
+    """
+    [GM Command] End the current encounter, giving players the opportunity to claim pips and level up.
+
+    Parameters
+    ----------
+    pips: int
+        The number of pips to grant for the encounter. (Default: 0)
+
+    Return
+    ------
+    A button (if selfhealing not requested) for healing and reports of all healing applied.
+    """
+    global users,guilds
+
+    message = "Encounter won! You've earned **"+str(pips)+"** experience pip(s). Click below to claim pips and then run: ```/levelup```"
+
+    button_view = d.endEncounter()
+    button_view.message = message
+    button_view.pips = pips
+    button_view.parentInter = interaction
+    button_view.users = users
+    button_view.guilds = guilds
+
+    await interaction.response.send_message(message,view=button_view)
+
+@d.tree.command()
+async def request(interaction: discord.Interaction, modifier: str, goal: int, message: str="", exp: bool=True):
+    """
+    [GM Command] Request the specified roll from players.
+
+    Parameters
+    ----------
+    modifier: str
+        A modifier, following `/roll` syntax, for the roll.
+    goal: int
+        Value to meet or exceed when rolling. This is not relayed in the resulting message.
+    message: str
+        The message for the roll, to help players know what the roll is for. (Optional)
+    exp: bool
+        Automatically grant exp for attempting the roll, if applicable. (Default: True)
+
+    Returns
+    -------
+    A button that rolls as specified.
+    """
+    global users,guilds
+
+    if message != "":
+        message = "> "+message+"\n"
+    message += "Requested roll: **"+modifier+"**"
+
+    button_view = d.requestRoll(interaction)
+    button_view.message = message
+    button_view.mod = modifier
+    button_view.guilds = guilds
+    button_view.users = users
+    button_view.goal = goal
+    button_view.auto = exp
+
+    await interaction.response.send_message(message,view=button_view)
+
+@d.tree.command()
+async def bestiary(interaction: discord.Interaction, mob: str="", private: bool=True):
+    """
+    [GM Command] Print a bestiary page, or a table of contents.
+
+    Parameters
+    ----------
+    mob: str
+        The creature you want to see the stats for. If unspecified, returns a list of creatures. (Optional)
+    private: bool
+        Whether or not the resulting message should be hidden from other users. (Default: True)
+
+    Returns
+    -------
+    Bestiary information.
+    """
+
+    if mob == "":
+       await interaction.response.send_message("",embed=m.mobs,ephemeral=private)
+    else: #Find the mob requested, case insensitive with trailing whitespace tolerance
+        mob_inst = m.get_mob(mob)
+        if mob_inst == []:
+            await interaction.response.send_message("Requested mob `"+mob+"` not found.",embed=m.mobs,ephemeral=True)
+        else:
+            await interaction.response.send_message("",embed=m.desc(mob_inst[0]))
+
+@d.tree.command()
+async def mob_attack(interaction: discord.Interaction, mob: str, attack: str=""):
+    """
+    [GM Command] Make a mob attack, allowing for player responses.
+
+    Parameters
+    ----------
+    mob: str
+        Name of the creature you want to attack with.
+    attack: str
+        Number (1-3) or name of the attack you want to use. If blank, uses the first attack in the creature's attack list. (Optional)
+
+    Returns
+    -------
+    Respond/Pass buttons for players and Roll button for GM.
+    """
+    global users,guilds
+
+    button_view = m.MobAttackButtons(interaction)
+    button_view.guilds = guilds
+    button_view.users = users
+    button_view.attack = attack
+    button_view.mob = mob
+    #Get mob info
+    mob_inst = m.get_mob(mob)
+    if mob_inst == []: #If the mob doesn't exist, give up and report failure
+        await interaction.response.send_message(content="Mob `"+mob+"` not found.",embed=m.mobs,ephemeral=True)
+        return 1
+    button_view.attack_inst = mob_inst[0].attacks
+    if attack == "": #If not specified, default to the first.
+        button_view.attack_inst = button_view.attack_inst[0]
+    else: #If specified,
+        try: #first see if it's positional.
+            button_view.attack_inst = button_view.attack_inst[int(attack)-1]
+        except (IndexError,ValueError) as e: #If you can't call it as a position,
+            #Look the attack up by name
+            button_view.attack_inst = [x for x in button_view.attack_inst if x['name'].lower().strip() == attack.lower().strip()]
+            #If you didn't find anything,
+            if button_view.attack_inst == []: #Give up and report the failure.
+                await interaction.response.send_message(content="Attack `"+attack+"` for creature `"+mob+"` not found.",embed=m.desc(mob_inst[0]),ephemeral=True)
+                return 2
+            button_view.attack_inst = button_view.attack_inst[0]
+
+    #Define the message to send
+    button_view.message = mob.capitalize()+" is attacking with "+button_view.attack_inst['name']+"!"
+
+    await interaction.response.send_message(button_view.message,view=button_view,embed=button_view.embed)
