@@ -57,6 +57,7 @@ Below are DungeonAI's general-use commands (for both players and GMs). The bot r
   :return: A button (if selfhealing not requested) for healing and reports of all healing applied.
 
 .. image:: no_overheal.png
+
 .. image:: overheal.png
 
 .. 
@@ -111,9 +112,9 @@ Below are DungeonAI's general-use commands (for both players and GMs). The bot r
 
    :return: Message indicating the rolled value and, if a goal was provided, whether it was a success or failure.
 
-..image::roll_auto.png
+..image:: roll_auto.png
 
-..image::roll_manual.png
+..image:: roll_manual.png
 
 Player Commands
 ===============
@@ -132,7 +133,7 @@ Below are additional commands intended for player use.
 
   :return: A levelup report with stat adjustment buttons, if applicable.
 
-..image::levelup.png
+..image:: levelup.png
 
 .. 
    _link:
@@ -182,7 +183,7 @@ Below are additional commands intended for player use.
    :type private: bool
    :return: A table of the requested character IDs and their associations.
 
-..image::view.png
+..image:: view.png
 
 GM Commands
 ===========
@@ -228,8 +229,8 @@ Below are additional commands intended for GM use.
 
    :return: A button that, when clicked, assigns damage to the character of the player who clicked it.
 
-.. image::damage_normal.png
-.. image::damage_bypass.png
+.. image:: damage_normal.png
+.. image:: damage_bypass.png
 
 ..
   _end_encounter
@@ -246,7 +247,7 @@ Below are additional commands intended for GM use.
 
    :return: A button to claim pips and reminder to check for levelup.
 
-..image::pips
+..image:: pips.png
 
 ..
   _mob_attack
@@ -266,7 +267,7 @@ Below are additional commands intended for GM use.
    
    :return: Respond/Pass buttons for players and Roll button for GM.
 
-..image::mob_attack.png
+..image:: mob_attack.png
 
 ..
   _request
@@ -292,4 +293,4 @@ Below are additional commands intended for GM use.
 
    :return: A button that rolls as specified.
 
-..image::request_noskill.png
+..image:: request_noskill.png
