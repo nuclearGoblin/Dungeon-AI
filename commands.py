@@ -26,19 +26,34 @@ guilds = pd.read_sql("SELECT "+", ".join(d.guildCols)+" FROM guilds",d.connectio
 async def help(interaction: discord.Interaction):
     """
     Lists available commands.
+    
+    Returns
+    -------
+      | **help:** Prints this help menu.
+      | **roll [dice] [goal] [autoexp] [private]:** Rolls a die.
+      | **link <url> [default] [allguilds]:** Link a character sheet to your user.
+      | **unlink <char>:** Unlink characters from yourself.
+      | **view [char]:** View the character sheets that you've linked.
+      | **heal <amount> [overheal] [selfheal] [name]:** Restore HP (button or self).
+      | **damage <amount> [bypass] [name]:** (GM) Create button for receiving damage.
+      | **mob_attack <name> [attack]:** (GM) Declare a mob attack.
+      | **mob_attack <name> [attack]:** (GM) Request a roll.
+      | **end_encounter [pips]:** (GM) Give out pips and prompt level up.
+      | **bestiary [mob] [private]:** (GM) View bestiary entries.
     """
     embed = discord.Embed(title="Commands")
     embed.add_field(name="help",value="Prints this help menu.",inline=False)
-    embed.add_field(name="roll [dice] [goal] [autoexp] [private]",value="Rolls a die.",inline=False)
-    embed.add_field(name="link <url> [default] [allguilds]",value="Link a character sheet to your user.",inline=False)
-    embed.add_field(name="unlink <char>",value="Unlink characters from yourself.",inline=False)
+    embed.add_field(name="roll [dice] [goal] [autoexp] [private]",value="Rolls a die.")
+    embed.add_field(name="mob_attack <name> [attack]",value="(GM) Declare and roll a mob attack.")
+    embed.add_field(name="request [modifier] [goal] [message] [exp]",value="(GM) Request a roll.",inline=False)
+    embed.add_field(name="link <url> [default] [allguilds]",value="Link a character sheet to your user.")
+    embed.add_field(name="unlink <char>",value="Unlink characters from yourself.")
     embed.add_field(name="view [char]",value="View the character sheets that you've linked.",inline=False)
-    embed.add_field(name="heal <amount> [overheal] [selfheal] [name]",value="Restore HP (button or self).")
-    embed.add_field(name="damage <amount> [bypass] [name]",value="(GM) Create button for receiving damage.")
-    embed.add_field(name="mob_attack <name> [attack]",value="(GM) Declare a mob attack.")
-    embed.add_field(name="request [modifier] [goal] [message] [exp]",value="(GM) Request a roll.")
+    embed.add_field(name="heal <amount> [overheal] [selfheal] [name]",value="Restore HP (button or self).",inline=False)
+    embed.add_field(name="damage <amount> [bypass] [name]",value="(GM) Create button for receiving damage.",inline=False)
+    embed.add_field(name="level_up",value="Check over your character and level up if applicable.")
     embed.add_field(name="end_encounter [pips]",value="(GM) Give out pips and prompt level up.")
-    embed.add_field(name="bestiary [mob] [private]",value="(GM) View bestiary entries.")
+    embed.add_field(name="bestiary [mob] [private]",value="(GM) View bestiary entries.",inline=False)
     await interaction.response.send_message(embed=embed,ephemeral=True)
 
 #Basic die rolls.
@@ -61,22 +76,12 @@ async def roll(interaction: discord.Interaction, modifier: str="", goal: int=-13
 
     Returns
     -------
-      | **help:** Prints this help menu.
-      | **roll [dice] [goal] [autoexp] [private]:** Rolls a die.
-      | **link <url> [default] [allguilds]:** Link a character sheet to your user.
-      | **unlink <char>:** Unlink characters from yourself.
-      | **view [char]:** View the character sheets that you've linked.
-      | **heal <amount> [overheal] [selfheal] [name]:** Restore HP (button or self).
-      | **damage <amount> [bypass] [name]:** (GM) Create button for receiving damage.
-      | **mob_attack <name> [attack]:** (GM) Declare a mob attack.
-      | **mob_attack <name> [attack]:** (GM) Request a roll.
-      | **end_encounter [pips]:** (GM) Give out pips and prompt level up.
-      | **bestiary [mob] [private]:** (GM) View bestiary entries.
+    Rolled value with information about modifier and success, as well as button for exp if it wasn't assigned.
     """
     button_view = None #unless defined
     global users,guilds
 
-    parsed_mod = d.mod_parser(modifier,goal,autoexp,interaction,guilds,users)
+    parsed_mod = d.mod_parser(modifier,goal,exp,interaction,guilds,users)
     if parsed_mod == 1:
         await interaction.response.send_message(
             "`modifier` argument format not recognized. "
@@ -159,9 +164,6 @@ async def link(interaction: discord.Interaction, url: str="", default: bool=True
         mcIDs = d.strtolist(gRow.iloc[0]["mainCharIDs"])
         roArray = d.strtolist(uRow.iloc[0]["readonly"])
     
-    print("\n========================\n")
-    print("Row init \n",gRow["mainCharIDs"])
-
     #Test read the character sheet.
     try:
         name = d.retrievevalue(location=d.statlayoutdict["name"],token=token)
@@ -740,7 +742,7 @@ async def heal(interaction: discord.Interaction, amount: int, overheal: bool=Fal
         await interaction.response.send_message("'"+str(amount)+" healing'? Very funny.",ephemeral=True)
         return 1
     if name != "":
-        message = name+" gives "
+        message = name.capitalize()+" gives "
     message += str(amount)+" HP of healing!"
     if selfheal:
         message = message[:-1]+" to you!"
@@ -768,10 +770,16 @@ async def heal(interaction: discord.Interaction, amount: int, overheal: bool=Fal
             #Yes, this behavior differs from the levelup function
             #Because in combat if I assume they have no HP they'd be dead!
             current = maxhp
+        #Don't reduce HP when avoiding overhealing
+        if not overheal:
+            amount = min(amount,maxhp-current) #overheals not allowed
+            amount = max(amount,0) #negative heals also not allowed!
         current += amount
-        current = min(current,maxhp) #overheals not allowed
         d.sheet.values().update(spreadsheetId=token,range=d.statlayoutdict["currenthp"],valueInputOption="USER_ENTERED",body={'values':[[current]]}).execute()
-        await interaction.response.send_message(message,ephemeral=True) 
+        embed = discord.Embed(title="Healing received",description=interaction.user.mention,color=d.hp_color(current/maxhp))
+        embed.add_field(name="Received:",value=amount)
+        embed.set_footer(text="Remaining: "+str(current)+"/"+str(maxhp))
+        await interaction.response.send_message(message,ephemeral=True,embed=embed) 
     else:
         await interaction.response.send_message(message,view=button_view)
 
@@ -828,14 +836,13 @@ async def request(interaction: discord.Interaction, modifier: str, goal: int, me
         message = "> "+message+"\n"
     message += "Requested roll: **"+modifier+"**"
 
-    button_view = d.requestRoll()
+    button_view = d.requestRoll(interaction)
     button_view.message = message
     button_view.mod = modifier
     button_view.guilds = guilds
     button_view.users = users
     button_view.goal = goal
     button_view.auto = exp
-    button_view.parentInter = interaction
 
     await interaction.response.send_message(message,view=button_view)
 

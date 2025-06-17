@@ -413,7 +413,7 @@ def mod_parser(modifier,goal,autoexp,interaction,guilds,users):
     rollname = rollname+"**." #end bold
 
     try: #If a skill was rolled, we will look at experience.
-        if not readonlytest(token):
+        if (not readonlytest(token)) and (skillname is not None):
             if autoexp:
                 expmsg = giveExp(skillrow,rank,token,skillname) #assigns message while processing
                 rollname += " "+expmsg
@@ -425,7 +425,7 @@ def mod_parser(modifier,goal,autoexp,interaction,guilds,users):
                 button_view.skillname = skillname
                 button_view.message = rollname+" "
                 button_view.parentInter = interaction
-        else:
+        elif skillname is not None:
             rollname += " Don't forget to update your skill experience." 
     except UnboundLocalError: #skillname is undefined, so we weren't rolling a skill
         pass
@@ -806,13 +806,14 @@ class takeHealing(discord.ui.View):
             await self.parentInter.edit_original_response(content=self.message,view=self,embeds=self.embeds)
         else:
             #Get values
-            _,current,maxhp,name = getHpForEmbed(self,token)
-            current += self.damage
-            current = min(current,maxhp) #overhealing bad
+            _,current,maxhp,name,_ = getHpForEmbed(token)
+            amount = min(self.damage,maxhp-current) #overhealing bad
+            amount = max(0,amount) #damage also bad
+            current += amount
             self.embeds.append(discord.Embed(title=name,description=interaction.user.mention,color=hp_color(current/maxhp)))
             self.clickedby.append(interaction.user)
 
-            self.embeds[-1].add_field(name="Received:",value=self.damage)
+            self.embeds[-1].add_field(name="Received:",value=amount)
             self.embeds[-1].set_footer(text="Remaining: "+str(current)+"/"+str(maxhp),icon_url="https://flippurgatory.itch.io/animated-potion-assets-pack-free")
 
             #Respond
@@ -823,7 +824,7 @@ class takeHealing(discord.ui.View):
 
 
 class requestRoll(discord.ui.View):
-    def __init__(self):
+    def __init__(self,interaction):
         super().__init__()
         self.mod = ""
         self.guilds = None
@@ -831,7 +832,7 @@ class requestRoll(discord.ui.View):
         self.message = ""
         self.goal = 0
         self.auto = True
-        self.parentInter = discord.Interaction(data=None,state=None)
+        self.parentInter = interaction
         #Don't let the same user reroll repeatedly.
         self.clickedby = []
         self.embed = discord.Embed(title="Rolled by:")

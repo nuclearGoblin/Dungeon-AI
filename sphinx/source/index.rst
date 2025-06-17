@@ -56,6 +56,9 @@ Below are DungeonAI's general-use commands (for both players and GMs). The bot r
 
   :return: A button (if selfhealing not requested) for healing and reports of all healing applied.
 
+.. image:: no_overheal.png
+.. image:: overheal.png
+
 .. 
    _help:
 
@@ -81,6 +84,8 @@ Below are DungeonAI's general-use commands (for both players and GMs). The bot r
       | **bestiary [mob] [private]:** (GM) View bestiary entries.
       | """
 
+.. image:: help.png
+   
 .. 
    _roll:
 
@@ -106,6 +111,10 @@ Below are DungeonAI's general-use commands (for both players and GMs). The bot r
 
    :return: Message indicating the rolled value and, if a goal was provided, whether it was a success or failure.
 
+..image::roll_auto.png
+
+..image::roll_manual.png
+
 Player Commands
 ===============
 
@@ -122,6 +131,8 @@ Below are additional commands intended for player use.
   **/levelup** - Scans for current exp on your current default character sheet and rank/level up as appropriate.
 
   :return: A levelup report with stat adjustment buttons, if applicable.
+
+..image::levelup.png
 
 .. 
    _link:
@@ -171,6 +182,7 @@ Below are additional commands intended for player use.
    :type private: bool
    :return: A table of the requested character IDs and their associations.
 
+..image::view.png
 
 GM Commands
 ===========
@@ -216,6 +228,9 @@ Below are additional commands intended for GM use.
 
    :return: A button that, when clicked, assigns damage to the character of the player who clicked it.
 
+.. image::damage_normal.png
+.. image::damage_bypass.png
+
 ..
   _end_encounter
 
@@ -229,7 +244,9 @@ Below are additional commands intended for GM use.
    :param pips: How many pips to give out. (Default: 0)
    :type pips: int
 
-   :return: A button to claim pips and check for levelup.
+   :return: A button to claim pips and reminder to check for levelup.
+
+..image::pips
 
 ..
   _mob_attack
@@ -248,7 +265,9 @@ Below are additional commands intended for GM use.
    :type attack: str
    
    :return: Respond/Pass buttons for players and Roll button for GM.
-   
+
+..image::mob_attack.png
+
 ..
   _request
 
@@ -272,3 +291,5 @@ Below are additional commands intended for GM use.
    :type param: True
 
    :return: A button that rolls as specified.
+
+..image::request_noskill.png
